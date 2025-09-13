@@ -20,7 +20,7 @@ export default function App() {
       <div className="mx-auto max-w-7xl px-4 py-6">
         <header className="mb-6 flex items-baseline justify-between">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-            VErdar
+            VErda333r
           </h1>
           <span className="text-sm opacity-80">React • Three.js • R3F</span>
         </header>
