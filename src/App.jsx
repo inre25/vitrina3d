@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useCart } from "./store/cart";
 import Cart from "./components/Cart";
+import LayerSlicer from "./components/LayerSlicer.jsx";
 // если у тебя здесь был импорт LayerSlicer — оставь его как был
 // import LayerSlicer from "./components/LayerSlicer.jsx";
 
