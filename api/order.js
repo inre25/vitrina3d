@@ -1,62 +1,50 @@
 export default async function handler(req, res) {
-  if (req.method !== "POST")
-    return res.status(405).json({ ok: false, error: "Method not allowed" });
+  if (req.method !== "POST") {
+    return res.status(405).json({ ok: false, error: "Method Not Allowed" });
+  }
 
   try {
-    const { items = [], total = 0, customer = {} } = req.body || {};
-    const pretty = (n) => Number(n || 0).toFixed(2);
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
 
-    const lines = items
-      .map(
-        (it, i) =>
-          `${i + 1}) ${it.title} — ${pretty(it.price)}\n` +
-          `   Высота: ${it.heightMM} мм | Слой: ${it.currentLayer}/${it.layers} | Шаг: ${it.layerHeight} мм`
-      )
-      .join("\n");
+    const { items = [], total = 0, meta = {} } = req.body || {};
+
+    const lines = items.map(
+      (i) =>
+        `• ${i.title} × ${i.qty} = ${
+          Number(i.price || 0) * Number(i.qty || 1)
+        } ₽`
+    );
 
     const text =
-      `🧾 Новая заявка с витрины 3D\n\n` +
-      `👤 Клиент: ${customer.name || "-"}\n` +
-      `📞 Телефон: ${customer.phone || "-"}\n` +
-      `✉️ Email: ${customer.email || "-"}\n` +
-      (customer.comment ? `💬 Комментарий: ${customer.comment}\n` : "") +
-      `\nТовары:\n${lines || "—"}\n\n` +
-      `Итого: ${pretty(total)}`;
+      `🛒 Новый заказ\n` +
+      lines.join("\n") +
+      `\n—\nИтого: ${total} ₽` +
+      (Object.keys(meta).length
+        ? `\n\n${Object.entries(meta)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join("\n")}`
+        : "");
 
-    // --- Telegram ---
-    const BOT = process.env.TG_BOT_TOKEN;
-    const CHAT = process.env.TG_CHAT_ID;
-    if (BOT && CHAT) {
-      await fetch(`https://api.telegram.org/bot${BOT}/sendMessage`, {
+    const tgRes = await fetch(
+      `https://api.telegram.org/bot${token}/sendMessage`,
+      {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: CHAT, text }),
-      });
+        body: JSON.stringify({ chat_id: chatId, text }),
+      }
+    );
+
+    const tgJson = await tgRes.json().catch(() => ({}));
+    if (!tgRes.ok || tgJson?.ok === false) {
+      throw new Error(tgJson?.description || `Telegram HTTP ${tgRes.status}`);
     }
 
-    // --- Email через SMTP (Nodemailer) ---
-    const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, TO_EMAIL, FROM_EMAIL } =
-      process.env;
-    if (SMTP_HOST && SMTP_USER && SMTP_PASS && TO_EMAIL) {
-      const nodemailer = (await import("nodemailer")).default;
-      const transporter = nodemailer.createTransport({
-        host: SMTP_HOST,
-        port: Number(SMTP_PORT || 587),
-        secure: Number(SMTP_PORT || 587) === 465,
-        auth: { user: SMTP_USER, pass: SMTP_PASS },
-      });
-      await transporter.sendMail({
-        from: FROM_EMAIL || SMTP_USER,
-        to: TO_EMAIL,
-        subject: "Новая заявка с витрины 3D",
-        text,
-        html: text.replace(/\n/g, "<br>"),
-      });
-    }
-
-    res.status(200).json({ ok: true });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ ok: false, error: e.message });
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error("[order] error:", err);
+    return res
+      .status(500)
+      .json({ ok: false, error: String(err?.message || err) });
   }
 }
