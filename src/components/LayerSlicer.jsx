@@ -1,11 +1,11 @@
-export default function LayerSlicer({ currentLayer, layerHeight, layers }) {
-  // ... твой код компонента ...
-}
+import { useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Grid, Plane } from "@react-three/drei";
 import * as THREE from "three";
-import { useMemo, useRef } from "react";
 
+/**
+ * Внутренняя сцена с клиппингом по Z.
+ */
 function ClippingScene({ currentLayer, layerHeight, layers }) {
   const { gl } = useThree();
   gl.localClippingEnabled = true;
@@ -14,6 +14,7 @@ function ClippingScene({ currentLayer, layerHeight, layers }) {
     () => currentLayer * layerHeight,
     [currentLayer, layerHeight]
   );
+
   const clippingPlane = useMemo(
     () => new THREE.Plane(new THREE.Vector3(0, 0, -1), clipZ),
     [clipZ]
@@ -49,12 +50,14 @@ function ClippingScene({ currentLayer, layerHeight, layers }) {
         position={[0, 0, -0.001]}
       />
 
+      {/* маркер текущего среза */}
       <group ref={markerRef}>
         <Plane args={[6, 6]} rotation={[-Math.PI / 2, 0, 0]}>
           <meshBasicMaterial color="#22d3ee" transparent opacity={0.18} />
         </Plane>
       </group>
 
+      {/* пара тестовых мешей */}
       <group position={[0, 0, 0]}>
         <mesh castShadow receiveShadow position={[0, 0, 1.6]} scale={[1, 1, 3]}>
           <torusKnotGeometry args={[0.4, 0.12, 180, 32]} />
@@ -76,6 +79,9 @@ function ClippingScene({ currentLayer, layerHeight, layers }) {
   );
 }
 
+/**
+ * Единственный default-экспорт модуля.
+ */
 export default function LayerSlicer({ currentLayer, layerHeight, layers }) {
   const cameraProps = { position: [4, 4, 4], fov: 45 };
 
