@@ -1,5 +1,8 @@
 import { useState, useMemo } from "react";
-import LayerSlicer from "./components/LayerSlicer.jsx";
+import { useCart } from "./store/cart";
+import Cart from "./components/Cart";
+// если у тебя здесь был импорт LayerSlicer — оставь его как был
+// import LayerSlicer from "./components/LayerSlicer.jsx";
 
 export default function App() {
   const [layerHeight, setLayerHeight] = useState(0.2);
@@ -15,6 +18,29 @@ export default function App() {
     [currentLayer, layerHeight]
   );
 
+  // === добавлено для корзины ===
+  const { items, addItem } = useCart();
+  const [cartOpen, setCartOpen] = useState(false);
+
+  // простая формула цены: 5 за каждый мм текущей высоты (можно потом поменять)
+  const price = useMemo(
+    () => Number((currentHeightMM * 5).toFixed(2)),
+    [currentHeightMM]
+  );
+
+  const handleAdd = () => {
+    addItem({
+      title: "3D-печать (демо)",
+      layerHeight,
+      layers,
+      currentLayer,
+      heightMM: currentHeightMM,
+      price,
+    });
+    setCartOpen(true);
+  };
+  // =============================
+
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-indigo-950 via-indigo-900 to-purple-900 text-white">
       <div className="mx-auto max-w-7xl px-4 py-6">
@@ -22,7 +48,24 @@ export default function App() {
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
             прпрпрпрпрп
           </h1>
-          <span className="text-sm opacity-80">React • Three.js • R3F</span>
+
+          {/* === заменено: был просто текст справа, теперь кнопки === */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleAdd}
+              className="rounded-lg bg-emerald-500 hover:bg-emerald-600 px-3 py-2 font-semibold"
+              title="Добавить текущую конфигурацию в корзину"
+            >
+              + В корзину ({price.toFixed(2)})
+            </button>
+            <button
+              onClick={() => setCartOpen(true)}
+              className="rounded-lg bg-slate-700 hover:bg-slate-600 px-3 py-2"
+            >
+              Корзина {items.length ? `(${items.length})` : ""}
+            </button>
+          </div>
+          {/* ======================================================= */}
         </header>
 
         <section className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -99,6 +142,9 @@ export default function App() {
           Ползунок поднимает клип-плоскость по оси Z и «отрезает» часть модели.
         </footer>
       </div>
+
+      {/* модалка корзины */}
+      <Cart open={cartOpen} onClose={() => setCartOpen(false)} />
     </div>
   );
 }
