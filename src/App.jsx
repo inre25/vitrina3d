@@ -48,7 +48,7 @@ export default function App() {
       <div className="mx-auto max-w-7xl px-4 py-6">
         <header className="mb-6 flex items-baseline justify-between">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-            3двиаааааааааатрина
+            3днаконецто
           </h1>
 
           {/* === заменено: был просто текст справа, теперь кнопки === */}
