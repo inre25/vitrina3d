@@ -32,7 +32,7 @@ export function CartProvider({ children }) {
   const total = useMemo(
     () =>
       items.reduce(
-        (sum, item) => sum + Number(item.price || 0) * Number(item.qty || 1),
+        (sum, item) => sum + Number(item.price ?? 0) * Number(item.qty ?? 1),
         0
       ),
     [items]
@@ -46,8 +46,8 @@ export function CartProvider({ children }) {
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
 
-export function useCart() {
+export const useCart = () => {
   const ctx = useContext(CartContext);
   if (!ctx) throw new Error("useCart must be used within <CartProvider>");
   return ctx;
-}
+};
