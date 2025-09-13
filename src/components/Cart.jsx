@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useCart } from "../store/cart";
+import { useCart } from "./store/cart";
 
 export default function Cart({ open, onClose }) {
   const { items, removeItem, clear, total } = useCart();
