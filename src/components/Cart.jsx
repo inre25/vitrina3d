@@ -1,20 +1,36 @@
-import { X } from "lucide-react";
+// src/components/Cart.jsx
 import { useCart } from "../store/cart";
 
 export default function Cart({ open, setOpen }) {
-  const { items, removeItem, clearCart } = useCart();
+  const { items, clearCart } = useCart();
 
   if (!open) return null;
 
+  const totalCount = items.reduce((n, it) => n + (it.qty || 1), 0);
+  const totalSum = items.reduce(
+    (s, it) => s + (it.price || 0) * (it.qty || 1),
+    0
+  );
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60">
-      <div className="mt-20 w-full max-w-md rounded-xl bg-slate-900 shadow-2xl p-6 relative">
-        {/* кнопка закрытия */}
+    // клик по фону закрывает корзину
+    <div
+      className="fixed inset-0 z-[100] bg-black/60"
+      onClick={() => setOpen(false)}
+    >
+      {/* сам блок корзины — клики внутри НЕ закрывают */}
+      <div
+        className="absolute left-1/2 top-24 -translate-x-1/2 w-full max-w-md rounded-xl bg-slate-900 shadow-2xl p-6 text-white"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* крестик */}
         <button
+          type="button"
+          aria-label="Закрыть"
+          className="absolute right-4 top-3 text-slate-400 hover:text-white text-xl leading-none"
           onClick={() => setOpen(false)}
-          className="absolute right-4 top-4 text-slate-400 hover:text-white"
         >
-          <X size={20} />
+          ×
         </button>
 
         <h2 className="text-lg font-semibold mb-4">Корзина</h2>
@@ -23,37 +39,48 @@ export default function Cart({ open, setOpen }) {
           <p className="text-slate-400">Пусто…</p>
         ) : (
           <>
-            <ul className="space-y-2 mb-4">
+            <ul className="space-y-2 mb-4 max-h-60 overflow-auto pr-1">
               {items.map((it, i) => (
                 <li
                   key={i}
                   className="flex items-center justify-between bg-slate-800 rounded-lg p-2"
                 >
-                  <span>
-                    {it.title} — {it.price} р
-                  </span>
-                  <button
-                    onClick={() => removeItem(i)}
-                    className="text-red-400 hover:text-red-600"
-                  >
-                    Удалить
-                  </button>
+                  <div className="text-sm">
+                    <div className="font-medium">{it.title || "Товар"}</div>
+                    <div className="opacity-80">
+                      {it.qty || 1} × {it.price || 0} ₽
+                    </div>
+                  </div>
                 </li>
               ))}
             </ul>
 
-            <div className="flex justify-between mb-4">
+            <div className="flex items-center justify-between text-sm mb-4">
+              <div>
+                Товаров: <b>{totalCount}</b>
+              </div>
+              <div>
+                Итого: <b>{totalSum.toFixed(2)} ₽</b>
+              </div>
+            </div>
+
+            <div className="flex justify-between gap-2">
               <button
-                onClick={clearCart}
+                type="button"
+                onClick={() => clearCart()}
                 className="rounded bg-slate-700 hover:bg-slate-600 px-3 py-2 text-sm"
               >
                 Очистить
               </button>
+
+              {/* ВАЖНО: НИКАКИХ fetch здесь! Только закрыть и проскроллить к форме */}
               <button
+                type="button"
                 onClick={() => {
-                  setOpen(false); // закрываем корзину
+                  setOpen(false);
                   const el = document.getElementById("checkout");
-                  if (el) el.scrollIntoView({ behavior: "smooth" });
+                  if (el)
+                    el.scrollIntoView({ behavior: "smooth", block: "start" });
                 }}
                 className="rounded bg-emerald-500 hover:bg-emerald-600 px-3 py-2 text-sm font-semibold"
               >
