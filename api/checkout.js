@@ -1,61 +1,13 @@
-// /api/checkout.js  — читает и SMTP_*, и MAIL_*; Телега = успех, почта опциональна
-const nodemailer = require("nodemailer");
+// /api/checkout.js  — только Telegram (почта отключена), даёт чёткий ответ
+// CommonJS, Node 18+ (fetch доступен глобально)
 
-// берём значение из двух возможных имён переменных
-const env = (k1, k2, def = undefined) =>
-  process.env[k1] ?? process.env[k2] ?? def;
+const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TG_CHAT = process.env.TELEGRAM_CHAT_ID;
 
-async function sendTG(text) {
-  const token = env("TELEGRAM_BOT_TOKEN");
-  const chatId = env("TELEGRAM_CHAT_ID");
-  if (!token || !chatId) return { ok: false, err: "TELEGRAM_NOT_CONFIGURED" };
-  try {
-    const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text }),
-    });
-    const data = await r.json();
-    return { ok: !!data.ok, err: data.ok ? null : JSON.stringify(data) };
-  } catch (e) {
-    return { ok: false, err: String(e) };
-  }
-}
-
-async function sendMail({ subject, text }) {
-  const host = env("MAIL_HOST", "SMTP_HOST");
-  const user = env("MAIL_USER", "SMTP_USER");
-  const pass = env("MAIL_PASS", "SMTP_PASS");
-  const to = env("MAIL_TO", "TO_EMAIL", user);
-  const port = Number(env("MAIL_PORT", "SMTP_PORT", 465));
-  const secure = String(env("MAIL_SECURE", "SMTP_SECURE", "true")) === "true";
-
-  if (!host || !user || !pass || !to)
-    return { ok: false, err: "MAIL_NOT_CONFIGURED" };
-
-  try {
-    const transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: { user, pass },
-    });
-
-    await transporter.sendMail({
-      from: env("FROM_EMAIL", undefined, `"Витрина3D" <${user}>`),
-      to,
-      subject,
-      text,
-    });
-    return { ok: true, err: null };
-  } catch (e) {
-    return { ok: false, err: String(e) };
-  }
-}
-
+// Быстрая проверка, что функция задеплоена
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
-    return res.status(200).json({ ok: true, note: "checkout готов" });
+    return res.status(200).json({ ok: true, note: "checkout готов (TG only)" });
   }
 
   try {
@@ -86,19 +38,51 @@ module.exports = async (req, res) => {
       lines,
     ].join("\n");
 
-    // 1) Telegram (обязательный канал)
-    const tg = await sendTG(text);
+    // === Telegram ===
+    if (!TG_TOKEN || !TG_CHAT) {
+      return res.status(500).json({
+        ok: false,
+        channels: { telegram: false },
+        errors: {
+          telegram: "TELEGRAM_NOT_CONFIGURED (нет токена или chat_id)",
+        },
+      });
+    }
 
-    // 2) Email (необязательный)
-    const mail = await sendMail({ subject: "Новый заказ — Витрина3D", text });
+    const r = await fetch(
+      `https://api.telegram.org/bot${TG_TOKEN}/sendMessage`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // disable web previews & notifications just in case
+        body: JSON.stringify({
+          chat_id: TG_CHAT,
+          text,
+          disable_web_page_preview: true,
+        }),
+      }
+    );
 
-    const ok = tg.ok || mail.ok; // успех, если ушло хотя бы в Телеграм
-    return res.status(ok ? 200 : 500).json({
-      ok,
-      channels: { telegram: tg.ok, email: mail.ok },
-      errors: { telegram: tg.err, email: mail.err },
-    });
+    const data = await r.json();
+
+    if (data && data.ok) {
+      return res.status(200).json({
+        ok: true,
+        channels: { telegram: true },
+        errors: null,
+      });
+    } else {
+      return res.status(500).json({
+        ok: false,
+        channels: { telegram: false },
+        errors: { telegram: data ? JSON.stringify(data) : "NO_RESPONSE" },
+      });
+    }
   } catch (e) {
-    return res.status(500).json({ ok: false, message: String(e) });
+    return res.status(500).json({
+      ok: false,
+      channels: { telegram: false },
+      errors: { telegram: String(e) },
+    });
   }
 };
