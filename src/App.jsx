@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useCart } from "./store/cart";
 import Cart from "./components/Cart";
 import LayerSlicer from "./components/LayerSlicer.jsx";
-
+import CheckoutForm from "./components/CheckoutForm";
 // если у тебя здесь был импорт LayerSlicer — оставь его как был
 // import LayerSlicer from "./components/LayerSlicer.jsx";
 
@@ -42,6 +42,17 @@ export default function App() {
     setCartOpen(true);
   };
   // =============================
+
+  {
+    /* Показать форму, только если в корзине есть товары */
+  }
+  {
+    items.length > 0 && (
+      <div className="max-w-5xl mx-auto my-8">
+        <CheckoutForm />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-indigo-950 via-indigo-900 to-purple-900 text-white">
