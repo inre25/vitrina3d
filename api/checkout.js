@@ -1,88 +1,119 @@
-// /api/checkout.js  — только Telegram (почта отключена), даёт чёткий ответ
-// CommonJS, Node 18+ (fetch доступен глобально)
+// api/checkout.js
+import nodemailer from "nodemailer";
 
-const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const TG_CHAT = process.env.TELEGRAM_CHAT_ID;
-
-// Быстрая проверка, что функция задеплоена
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
+  // Разрешаем только POST
   if (req.method !== "POST") {
-    return res.status(200).json({ ok: true, note: "checkout готов (TG only)" });
+    return res.status(405).json({ ok: false, errors: ["METHOD_NOT_ALLOWED"] });
   }
 
+  // Читаем тело
+  const {
+    name = "",
+    phone = "",
+    email = "",
+    comment = "",
+    cart = [],
+    total = 0,
+  } = req.body || {};
+
+  // Валидация минимальная
+  const errors = [];
+  if (!name.trim()) errors.push("NO_NAME");
+  if (!phone.trim()) errors.push("NO_PHONE");
+  if (!Array.isArray(cart) || cart.length === 0) errors.push("EMPTY_CART");
+
+  if (errors.length) {
+    return res.status(400).json({ ok: false, errors });
+  }
+
+  // Проверяем переменные окружения
+  const required = [
+    "SMTP_HOST",
+    "SMTP_PORT",
+    "SMTP_USER",
+    "SMTP_PASS",
+    "FROM_EMAIL",
+    "TO_EMAIL",
+  ];
+  const missing = required.filter((k) => !process.env[k]);
+  if (missing.length) {
+    return res
+      .status(500)
+      .json({ ok: false, errors: ["MISSING_ENV", ...missing] });
+  }
+
+  const transport = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 465),
+    secure: String(process.env.SMTP_PORT || "465") === "465", // для 465 — true
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+
+  const cartLines =
+    cart
+      .map(
+        (p, i) =>
+          `${i + 1}. ${p.title || p.name || "Товар"} — ${p.qty || 1} шт${
+            p.price ? ` × ${p.price}` : ""
+          }`
+      )
+      .join("\n") || "(пусто)";
+
+  const subject = `🛒 Новая заявка с витрины`;
+  const text = [
+    `Имя: ${name}`,
+    `Телефон: ${phone}`,
+    `Email: ${email || "-"}`,
+    `Комментарий: ${comment || "-"}`,
+    ``,
+    `Состав корзины:`,
+    cartLines,
+    ``,
+    `Итого: ${total}`,
+    ``,
+    `Время: ${new Date().toLocaleString("ru-RU", { timeZone: "UTC" })} UTC`,
+  ].join("\n");
+
+  // Пробуем отправить e-mail
+  let emailOk = false;
   try {
-    const { name, phone, email, comment, items, total } = req.body || {};
+    await transport.sendMail({
+      from: process.env.FROM_EMAIL,
+      to: process.env.TO_EMAIL,
+      subject,
+      text,
+    });
+    emailOk = true;
+  } catch (e) {
+    // не валим запрос, просто отметим ошибку
+  }
 
-    const lines =
-      Array.isArray(items) && items.length
-        ? items
-            .map((it, i) => {
-              const title = it.title || it.name || "Товар";
-              const qty = it.qty || it.quantity || 1;
-              const price = it.price ?? 0;
-              return `${i + 1}. ${title} — ${price} руб. × ${qty}`;
-            })
-            .join("\n")
-        : "Товары не переданы.";
-
-    const text = [
-      "Новый заказ с Витрина3D",
-      "------------------------",
-      `Имя: ${name || "-"}`,
-      `Телефон: ${phone || "-"}`,
-      `Email: ${email || "-"}`,
-      `Комментарий: ${comment || "-"}`,
-      `Итого: ${total ?? 0} руб.`,
-      "",
-      "Состав:",
-      lines,
-    ].join("\n");
-
-    // === Telegram ===
-    if (!TG_TOKEN || !TG_CHAT) {
-      return res.status(500).json({
-        ok: false,
-        channels: { telegram: false },
-        errors: {
-          telegram: "TELEGRAM_NOT_CONFIGURED (нет токена или chat_id)",
-        },
-      });
-    }
-
-    const r = await fetch(
-      `https://api.telegram.org/bot${TG_TOKEN}/sendMessage`,
-      {
+  // Пробуем отправить в Telegram (если заданы токен и чат)
+  let telegramOk = false;
+  try {
+    const tkn = process.env.TELEGRAM_BOT_TOKEN;
+    const chat = process.env.TELEGRAM_CHAT_ID;
+    if (tkn && chat) {
+      const url = `https://api.telegram.org/bot${tkn}/sendMessage`;
+      await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // disable web previews & notifications just in case
-        body: JSON.stringify({
-          chat_id: TG_CHAT,
-          text,
-          disable_web_page_preview: true,
-        }),
-      }
-    );
-
-    const data = await r.json();
-
-    if (data && data.ok) {
-      return res.status(200).json({
-        ok: true,
-        channels: { telegram: true },
-        errors: null,
+        body: JSON.stringify({ chat_id: chat, text }),
       });
-    } else {
-      return res.status(500).json({
-        ok: false,
-        channels: { telegram: false },
-        errors: { telegram: data ? JSON.stringify(data) : "NO_RESPONSE" },
-      });
+      telegramOk = true;
     }
   } catch (e) {
-    return res.status(500).json({
-      ok: false,
-      channels: { telegram: false },
-      errors: { telegram: String(e) },
-    });
+    // глушим
   }
-};
+
+  // Ответ клиенту
+  return res.status(200).json({
+    ok: true,
+    channels: { email: emailOk, telegram: telegramOk },
+    errors: emailOk || telegramOk ? [] : ["NO_RESPONSE"],
+  });
+}

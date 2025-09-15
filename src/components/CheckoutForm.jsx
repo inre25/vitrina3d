@@ -1,119 +1,77 @@
+// src/components/CheckoutForm.jsx
 import { useState } from "react";
-import { useCart } from "../store/cart";
 
-export default function CheckoutForm() {
-  const { items, total, clear } = useCart();
-
+export default function CheckoutForm({ cart = [], total = 0, onSuccess }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState(null); // {type:'ok'|'warn'|'err', text:string}
+  const [msg, setMsg] = useState("");
 
-  async function onSubmit(e) {
+  async function submit(e) {
     e.preventDefault();
-    setMsg(null);
     setLoading(true);
+    setMsg("");
+
     try {
-      const resp = await fetch("/api/checkout", {
+      const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, phone, email, comment, items, total }),
+        body: JSON.stringify({ name, phone, email, comment, cart, total }),
       });
+      const data = await res.json();
 
-      const ct = resp.headers.get("content-type") || "";
-      const data = ct.includes("application/json") ? await resp.json() : null;
-
-      if (resp.ok && data?.ok) {
-        if (data.channels?.telegram && !data.channels?.email) {
-          setMsg({
-            type: "warn",
-            text: "Отправлено в Telegram. Почта пока не настроена.",
-          });
-        } else {
-          setMsg({ type: "ok", text: "Заявка отправлена. Спасибо!" });
-        }
-        clear();
-        setName("");
-        setPhone("");
-        setEmail("");
-        setComment("");
+      if (data.ok) {
+        setMsg("Заявка отправлена.");
+        if (typeof onSuccess === "function") onSuccess();
       } else {
-        setMsg({ type: "err", text: "Не удалось отправить. Повторите." });
+        setMsg("Ошибка: " + (data.errors?.join(", ") || "UNKNOWN"));
       }
-    } catch {
-      setMsg({
-        type: "err",
-        text: "Сбой сети. Проверьте интернет и повторите.",
-      });
+    } catch (err) {
+      setMsg("Сеть недоступна.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="w-full flex justify-center">
-      <form
-        onSubmit={onSubmit}
-        className="w-full max-w-xl rounded-2xl p-4 md:p-6 bg-white/5 backdrop-blur border border-white/10 space-y-3"
+    <form onSubmit={submit} className="flex flex-col gap-2">
+      <input
+        className="border p-2 rounded"
+        placeholder="Имя"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        required
+      />
+      <input
+        className="border p-2 rounded"
+        placeholder="Телефон"
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+        required
+      />
+      <input
+        className="border p-2 rounded"
+        placeholder="E-mail (необязательно)"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        type="email"
+      />
+      <textarea
+        className="border p-2 rounded"
+        placeholder="Комментарий"
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+      />
+      <button
+        type="submit"
+        className="bg-black text-white rounded px-4 py-2 disabled:opacity-50"
+        disabled={loading}
       >
-        <div className="text-white/80 text-lg font-semibold">
-          Оформление заказа
-        </div>
-        <div className="text-white/60 text-sm">
-          Товаров: {items?.length || 0} • Итого: {total ?? 0} руб.
-        </div>
-
-        <input
-          className="w-full rounded-md px-3 py-2 bg-white/10 text-white placeholder-white/50 outline-none focus:ring-2 focus:ring-white/30"
-          placeholder="Ваше имя"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-
-        <input
-          className="w-full rounded-md px-3 py-2 bg-white/10 text-white placeholder-white/50 outline-none focus:ring-2 focus:ring-white/30"
-          placeholder="Телефон"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-        />
-
-        <input
-          className="w-full rounded-md px-3 py-2 bg-white/10 text-white placeholder-white/50 outline-none focus:ring-2 focus:ring-white/30"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-
-        <textarea
-          className="w-full min-h-[90px] rounded-md px-3 py-2 bg-white/10 text-white placeholder-white/50 outline-none focus:ring-2 focus:ring-white/30"
-          placeholder="Комментарий"
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-        />
-
-        <button
-          disabled={loading}
-          className="w-full rounded-md px-4 py-3 bg-black text-white font-semibold disabled:opacity-60"
-        >
-          {loading ? "Отправляю..." : "Отправить заявку"}
-        </button>
-
-        {msg && (
-          <p
-            className={
-              msg.type === "ok"
-                ? "text-green-300"
-                : msg.type === "warn"
-                ? "text-yellow-300"
-                : "text-red-300"
-            }
-          >
-            {msg.text}
-          </p>
-        )}
-      </form>
-    </div>
+        {loading ? "Отправка..." : "Отправить заявку"}
+      </button>
+      {msg && <div className="text-sm">{msg}</div>}
+    </form>
   );
 }

@@ -19,12 +19,17 @@ export default function App() {
   );
 
   // === корзина ===
-  const { items, addItem } = useCart();
+  const { items, addItem, clearCart } = useCart();
   const [cartOpen, setCartOpen] = useState(false);
 
   const price = useMemo(
     () => Number((currentHeightMM * 5).toFixed(2)),
     [currentHeightMM]
+  );
+
+  const totalSum = useMemo(
+    () => items.reduce((s, it) => s + (it.price || 0) * (it.qty || 1), 0),
+    [items]
   );
 
   const handleAdd = () => {
@@ -146,7 +151,14 @@ export default function App() {
       {/* форма оформления */}
       {items.length > 0 && (
         <section id="checkout" className="max-w-5xl mx-auto my-8">
-          <CheckoutForm />
+          <CheckoutForm
+            cart={items}
+            total={totalSum}
+            onSuccess={() => {
+              clearCart();
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          />
         </section>
       )}
     </div>
