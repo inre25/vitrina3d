@@ -1,4 +1,3 @@
-// src/components/CheckoutForm.jsx
 import { useState } from "react";
 import { useCart } from "../store/cart";
 
@@ -17,14 +16,16 @@ export default function CheckoutForm() {
     setMsg(null);
     setLoading(true);
     try {
-      const r = await fetch("/api/send-order", {
+      const resp = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, phone, email, comment, items, total }),
       });
-      const data = await r.json();
 
-      if (data.ok) {
+      const ct = resp.headers.get("content-type") || "";
+      const data = ct.includes("application/json") ? await resp.json() : null;
+
+      if (resp.ok && data?.ok) {
         if (data.channels?.telegram && !data.channels?.email) {
           setMsg({
             type: "warn",
@@ -41,7 +42,7 @@ export default function CheckoutForm() {
       } else {
         setMsg({ type: "err", text: "Не удалось отправить. Повторите." });
       }
-    } catch (e) {
+    } catch {
       setMsg({
         type: "err",
         text: "Сбой сети. Проверьте интернет и повторите.",
