@@ -8,3 +8,6 @@ export const useCart = create((set, get) => ({
   },
   clearCart: () => set({ items: [] }),
 }));
+
+// чтобы не трогать main.jsx с <CartProvider>...</CartProvider>
+export const CartProvider = ({ children }) => children;
