@@ -15,21 +15,40 @@ export default function CheckoutForm({ cart = [], total = 0, onSuccess }) {
     setMsg("");
 
     try {
-      const res = await fetch("/api/checkout", {
+      const url = `${window.location.origin}/api/checkout`;
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 15000);
+
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, phone, email, comment, cart, total }),
+        signal: ctrl.signal,
       });
-      const data = await res.json();
 
+      clearTimeout(timer);
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(
+          `HTTP ${res.status} ${res.statusText} — ${txt.slice(0, 200)}`
+        );
+        // сюда упадём, если функция вернула 400/500
+      }
+
+      const data = await res.json();
       if (data.ok) {
         setMsg("Заявка отправлена.");
-        if (typeof onSuccess === "function") onSuccess();
+        onSuccess?.();
       } else {
         setMsg("Ошибка: " + (data.errors?.join(", ") || "UNKNOWN"));
       }
     } catch (err) {
-      setMsg("Сеть недоступна.");
+      setMsg(
+        err?.name === "AbortError"
+          ? "Таймаут запроса (15 сек.)"
+          : "Сеть/запрос: " + (err?.message || "ошибка")
+      );
     } finally {
       setLoading(false);
     }
