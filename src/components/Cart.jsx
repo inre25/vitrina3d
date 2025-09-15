@@ -12,7 +12,7 @@ export default function Cart({ open, onClose }) {
     try {
       setBusy(true);
 
-      const res = await fetch("/api/order", {
+      const res = await fetch("/api/send-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
