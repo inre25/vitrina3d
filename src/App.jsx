@@ -3,8 +3,6 @@ import { useCart } from "./store/cart";
 import Cart from "./components/Cart";
 import LayerSlicer from "./components/LayerSlicer.jsx";
 import CheckoutForm from "./components/CheckoutForm";
-// если у тебя здесь был импорт LayerSlicer — оставь его как был
-// import LayerSlicer from "./components/LayerSlicer.jsx";
 
 export default function App() {
   const [layerHeight, setLayerHeight] = useState(0.2);
@@ -20,11 +18,10 @@ export default function App() {
     [currentLayer, layerHeight]
   );
 
-  // === добавлено для корзины ===
+  // === корзина ===
   const { items, addItem } = useCart();
   const [cartOpen, setCartOpen] = useState(false);
 
-  // простая формула цены: 5 за каждый мм текущей высоты (можно потом поменять)
   const price = useMemo(
     () => Number((currentHeightMM * 5).toFixed(2)),
     [currentHeightMM]
@@ -41,18 +38,7 @@ export default function App() {
     });
     setCartOpen(true);
   };
-  // =============================
-
-  {
-    /* Показать форму, только если в корзине есть товары */
-  }
-  {
-    items.length > 0 && (
-      <div className="max-w-5xl mx-auto my-8">
-        <CheckoutForm />
-      </div>
-    );
-  }
+  // =================
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-indigo-950 via-indigo-900 to-purple-900 text-white">
@@ -62,7 +48,6 @@ export default function App() {
             3днаконецто
           </h1>
 
-          {/* === заменено: был просто текст справа, теперь кнопки === */}
           <div className="flex items-center gap-2">
             <button
               onClick={handleAdd}
@@ -78,7 +63,6 @@ export default function App() {
               Корзина {items.length ? `(${items.length})` : ""}
             </button>
           </div>
-          {/* ======================================================= */}
         </header>
 
         <section className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -157,7 +141,14 @@ export default function App() {
       </div>
 
       {/* модалка корзины */}
-      <Cart open={cartOpen} onClose={() => setCartOpen(false)} />
+      <Cart open={cartOpen} setOpen={setCartOpen} />
+
+      {/* форма оформления */}
+      {items.length > 0 && (
+        <section id="checkout" className="max-w-5xl mx-auto my-8">
+          <CheckoutForm />
+        </section>
+      )}
     </div>
   );
 }
