@@ -1,4 +1,4 @@
-// /api/checkout.js  (Vercel serverless; CommonJS)
+// /api/checkout.js
 const nodemailer = require("nodemailer");
 
 async function sendTG(text) {
@@ -23,7 +23,6 @@ async function sendMail({ subject, text }) {
   const user = process.env.MAIL_USER;
   const pass = process.env.MAIL_PASS;
   const to = process.env.MAIL_TO || user;
-
   if (!host || !user || !pass || !to)
     return { ok: false, err: "MAIL_NOT_CONFIGURED" };
   try {
@@ -46,47 +45,41 @@ async function sendMail({ subject, text }) {
 }
 
 module.exports = async (req, res) => {
-  if (req.method !== "POST") {
-    res.status(405).json({ ok: false, message: "Method not allowed" });
-    return;
-  }
+  if (req.method !== "POST")
+    return res.status(200).json({ ok: true, note: "checkout готов" });
 
-  try {
-    const { name, phone, email, comment, items, total } = req.body || {};
-    const lines =
-      Array.isArray(items) && items.length
-        ? items.map((it, i) => {
-            const title = it.title || it.name || "Товар";
-            const qty = it.qty || it.quantity || 1;
-            const price = it.price ?? 0;
-            return `${i + 1}. ${title} — ${price} руб. × ${qty}`;
-          })
-        : ["Товары не переданы."];
+  const { name, phone, email, comment, items, total } = req.body || {};
+  const list =
+    Array.isArray(items) && items.length
+      ? items
+          .map(
+            (it, i) =>
+              `${i + 1}. ${it.title || it.name || "Товар"} — ${
+                it.price ?? 0
+              } руб. × ${it.qty || it.quantity || 1}`
+          )
+          .join("\n")
+      : "Товары не переданы.";
+  const text = [
+    "Новый заказ с Витрина3D",
+    "------------------------",
+    `Имя: ${name || "-"}`,
+    `Телефон: ${phone || "-"}`,
+    `Email: ${email || "-"}`,
+    `Комментарий: ${comment || "-"}`,
+    `Итого: ${total ?? 0} руб.`,
+    "",
+    "Состав:",
+    list,
+  ].join("\n");
 
-    const text = [
-      "Новый заказ с Витрина3D",
-      "------------------------",
-      `Имя: ${name || "-"}`,
-      `Телефон: ${phone || "-"}`,
-      `Email: ${email || "-"}`,
-      `Комментарий: ${comment || "-"}`,
-      `Итого: ${total ?? 0} руб.`,
-      "",
-      "Состав:",
-      ...lines,
-    ].join("\n");
+  const tg = await sendTG(text);
+  const mail = await sendMail({ subject: "Новый заказ — Витрина3D", text });
+  const ok = tg.ok || mail.ok; // успех, если ушло хотя бы в Телеграм
 
-    const tg = await sendTG(text);
-    const mail = await sendMail({ subject: "Новый заказ — Витрина3D", text });
-
-    // УСПЕХ, если ушло хотя бы в Телеграм
-    const ok = tg.ok || mail.ok;
-    res.status(ok ? 200 : 500).json({
-      ok,
-      channels: { telegram: tg.ok, email: mail.ok },
-      errors: { telegram: tg.err, email: mail.err },
-    });
-  } catch (e) {
-    res.status(500).json({ ok: false, message: String(e) });
-  }
+  return res.status(ok ? 200 : 500).json({
+    ok,
+    channels: { telegram: tg.ok, email: mail.ok },
+    errors: { telegram: tg.err, email: mail.err },
+  });
 };
