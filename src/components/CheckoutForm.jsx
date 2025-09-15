@@ -1,134 +1,107 @@
 // src/components/CheckoutForm.jsx
-import { useState, useMemo } from "react";
-import { useCart } from "../store/cart"; // ваш хук корзины
+import { useState } from "react";
+import { useCart } from "../store/cart";
 
 export default function CheckoutForm() {
-  const { items, clearCart } = useCart();
+  const { items, total, clear } = useCart();
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [comment, setComment] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState(null); // { type: 'ok'|'warn'|'err', text: string }
 
-  const totals = useMemo(() => {
-    const count = items.reduce((n, it) => n + (it.qty || 1), 0);
-    const sum = items.reduce((s, it) => s + (it.price || 0) * (it.qty || 1), 0);
-    return { count, sum };
-  }, [items]);
-
-  const [form, setForm] = useState({
-    name: "",
-    phone: "",
-    email: "",
-    comment: "",
-  });
-  const [status, setStatus] = useState({ sending: false, ok: null, msg: "" });
-
-  const onChange = (e) =>
-    setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
-
-  async function submit(e) {
+  async function onSubmit(e) {
     e.preventDefault();
-    if (!form.name.trim() || !form.phone.trim()) {
-      setStatus({ sending: false, ok: false, msg: "Укажите имя и телефон" });
-      return;
-    }
-    setStatus({ sending: true, ok: null, msg: "Отправляем..." });
+    setMsg(null);
+    setLoading(true);
 
     try {
-      const res = await fetch("/api/send-order", {
+      const resp = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customer: form,
-          items,
-          totals,
-          meta: {
-            site: window?.location?.origin || "PWA",
-            ts: new Date().toISOString(),
-          },
-        }),
+        body: JSON.stringify({ name, phone, email, comment, items, total }),
       });
+      const data = await resp.json();
 
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || "Send failed");
-
-      setStatus({
-        sending: false,
-        ok: true,
-        msg: "Заявка отправлена! Мы свяжемся с вами.",
-      });
-      clearCart();
-      setForm({ name: "", phone: "", email: "", comment: "" });
+      if (data.ok) {
+        // Успех по крайней мере в одном канале
+        if (data.channels?.telegram && !data.channels?.email) {
+          setMsg({
+            type: "warn",
+            text: "Заявка отправлена в Telegram. Письмо не доставлено (позже можно настроить SMTP).",
+          });
+        } else {
+          setMsg({ type: "ok", text: "Заявка отправлена. Спасибо!" });
+        }
+        clear();
+        setName("");
+        setPhone("");
+        setEmail("");
+        setComment("");
+      } else {
+        setMsg({
+          type: "err",
+          text: "Не удалось отправить. Попробуйте ещё раз.",
+        });
+      }
     } catch (err) {
-      setStatus({
-        sending: false,
-        ok: false,
-        msg: "Не удалось отправить. Попробуйте ещё раз.",
+      setMsg({
+        type: "err",
+        text: "Сбой сети. Проверьте интернет и повторите.",
       });
-      console.error(err);
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
-    <div className="max-w-xl w-full mx-auto p-4 rounded-2xl shadow border border-gray-100">
-      <h3 className="text-xl font-semibold mb-3">Оформление заказа</h3>
+    <form onSubmit={onSubmit} className="space-y-3">
+      <input
+        className="w-full rounded-md px-3 py-2"
+        placeholder="Ваше имя"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+      <input
+        className="w-full rounded-md px-3 py-2"
+        placeholder="Телефон"
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+      />
+      <input
+        className="w-full rounded-md px-3 py-2"
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
+      <textarea
+        className="w-full rounded-md px-3 py-2 min-h-[90px]"
+        placeholder="Комментарий"
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+      />
 
-      <div className="text-sm mb-4">
-        <div>
-          Товаров: <b>{totals.count}</b>
-        </div>
-        <div>
-          Итого: <b>{totals.sum} руб.</b>
-        </div>
-      </div>
+      <button
+        disabled={loading}
+        className="w-full rounded-md px-4 py-3 bg-black text-white disabled:opacity-60"
+      >
+        {loading ? "Отправляю..." : "Отправить заявку"}
+      </button>
 
-      <form onSubmit={submit} className="grid gap-3">
-        <input
-          name="name"
-          placeholder="Ваше имя *"
-          value={form.name}
-          onChange={onChange}
-          className="border rounded-xl p-3"
-          required
-        />
-        <input
-          name="phone"
-          placeholder="Телефон *"
-          value={form.phone}
-          onChange={onChange}
-          className="border rounded-xl p-3"
-          required
-        />
-        <input
-          type="email"
-          name="email"
-          placeholder="E-mail (по желанию)"
-          value={form.email}
-          onChange={onChange}
-          className="border rounded-xl p-3"
-        />
-        <textarea
-          name="comment"
-          placeholder="Комментарий к заказу"
-          value={form.comment}
-          onChange={onChange}
-          className="border rounded-xl p-3 min-h-[96px]"
-        />
-
-        <button
-          type="submit"
-          disabled={status.sending}
-          className="rounded-2xl p-3 font-semibold shadow bg-black text-white disabled:opacity-60"
+      {msg && (
+        <p
+          className={
+            msg.type === "ok"
+              ? "text-green-300"
+              : msg.type === "warn"
+              ? "text-yellow-300"
+              : "text-red-300"
+          }
         >
-          {status.sending ? "Отправляем…" : "Отправить заявку"}
-        </button>
-
-        {status.msg && (
-          <div
-            className={`text-sm ${
-              status.ok === false ? "text-red-600" : "text-green-600"
-            }`}
-          >
-            {status.msg}
-          </div>
-        )}
-      </form>
-    </div>
+          {msg.text}
+        </p>
+      )}
+    </form>
   );
 }
