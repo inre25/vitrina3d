@@ -31,7 +31,7 @@ export default function CheckoutForm() {
     setStatus({ sending: true, ok: null, msg: "Отправляем..." });
 
     try {
-      const res = await fetch("/api/send-email", {
+      const res = await fetch("/api/send-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
