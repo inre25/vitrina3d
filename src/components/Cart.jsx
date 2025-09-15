@@ -1,100 +1,67 @@
-import { useState } from "react";
+import { X } from "lucide-react";
 import { useCart } from "../store/cart";
 
-export default function Cart({ open, onClose }) {
-  const { items, total, removeItem, clear } = useCart();
-  const [busy, setBusy] = useState(false);
+export default function Cart({ open, setOpen }) {
+  const { items, removeItem, clearCart } = useCart();
 
   if (!open) return null;
 
-  async function handleCheckout() {
-    if (!items.length || busy) return;
-    try {
-      setBusy(true);
-
-      const res = await fetch("/api/send-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items,
-          total,
-          meta: {
-            url: typeof window !== "undefined" ? window.location.href : "",
-            time: new Date().toISOString(),
-          },
-        }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data?.ok === false) {
-        throw new Error(data?.error || `HTTP ${res.status}`);
-      }
-
-      alert("Заказ отправлен в Telegram ✅");
-      clear();
-      onClose?.();
-    } catch (e) {
-      console.error("checkout error:", e);
-      alert("Не удалось оформить заказ: " + e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
-      <div className="bg-slate-900 text-white rounded-2xl p-4 w-[520px] max-w-[95vw] shadow-xl">
-        <div className="flex justify-between items-center mb-3">
-          <h2 className="text-lg font-semibold">Корзина</h2>
-          <button
-            onClick={onClose}
-            className="px-2 py-1 rounded bg-white/10 hover:bg-white/20"
-          >
-            ✕
-          </button>
-        </div>
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60">
+      <div className="mt-20 w-full max-w-md rounded-xl bg-slate-900 shadow-2xl p-6 relative">
+        {/* кнопка закрытия */}
+        <button
+          onClick={() => setOpen(false)}
+          className="absolute right-4 top-4 text-slate-400 hover:text-white"
+        >
+          <X size={20} />
+        </button>
 
-        <ul className="space-y-2 max-h-[40vh] overflow-auto pr-2">
-          {items.length === 0 && <li className="opacity-70">Пусто</li>}
-          {items.map((it) => (
-            <li key={it.id} className="flex justify-between items-center gap-3">
-              <div className="min-w-0">
-                <div className="truncate">{it.title ?? it.id}</div>
-                <div className="text-xs opacity-70">
-                  {it.qty} × {Number(it.price ?? 0)} ₽
-                </div>
-              </div>
+        <h2 className="text-lg font-semibold mb-4">Корзина</h2>
+
+        {items.length === 0 ? (
+          <p className="text-slate-400">Пусто…</p>
+        ) : (
+          <>
+            <ul className="space-y-2 mb-4">
+              {items.map((it, i) => (
+                <li
+                  key={i}
+                  className="flex items-center justify-between bg-slate-800 rounded-lg p-2"
+                >
+                  <span>
+                    {it.title} — {it.price} р
+                  </span>
+                  <button
+                    onClick={() => removeItem(i)}
+                    className="text-red-400 hover:text-red-600"
+                  >
+                    Удалить
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            <div className="flex justify-between mb-4">
               <button
-                onClick={() => removeItem(it.id)}
-                className="px-2 py-1 text-xs rounded bg-white/10 hover:bg-white/20"
+                onClick={clearCart}
+                className="rounded bg-slate-700 hover:bg-slate-600 px-3 py-2 text-sm"
               >
-                –
+                Очистить
               </button>
-            </li>
-          ))}
-        </ul>
-
-        <div className="mt-4 flex justify-between items-center">
-          <div className="font-medium">
-            Итого: {Number(total || 0).toFixed(2)} ₽
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={clear}
-              disabled={!items.length || busy}
-              className="px-3 py-1 rounded bg-white/10 hover:bg-white/20 disabled:opacity-50"
-            >
-              Очистить
-            </button>
-            <button
-              onClick={handleCheckout}
-              disabled={!items.length || busy}
-              className="px-3 py-1 rounded bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50"
-            >
-              {busy ? "Отправка..." : "Оформить"}
-            </button>
-          </div>
-        </div>
+              <button
+                onClick={() => {
+                  setOpen(false); // закрываем корзину
+                  const el = document.getElementById("checkout");
+                  if (el) el.scrollIntoView({ behavior: "smooth" });
+                }}
+                className="rounded bg-emerald-500 hover:bg-emerald-600 px-3 py-2 text-sm font-semibold"
+              >
+                Оформить
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
