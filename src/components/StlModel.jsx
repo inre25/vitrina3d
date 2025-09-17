@@ -1,80 +1,135 @@
-// src/components/StlModel.jsx
-import { useLoader } from "@react-three/fiber";
-import { STLLoader } from "three/examples/jsm/loaders/STLLoader";
+// src/components/LayerSlicer.jsx
+import StlModel from "./StlModel.jsx";
+import config from "../config/admin.json";
+import { useMemo, useRef } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { OrbitControls, Grid, Plane } from "@react-three/drei";
 import * as THREE from "three";
 
-export default function StlModel({
-  url,
-  color = "#cccccc",
-  // пользовательский слайдер
-  scale = 1,
-  // множитель из конфига модели
-  baseScale = 1,
-  position = [0, 0, 0],
-  rotation = [0, 0, 0],
-  clippingPlanes = [],
-  // нормализация
-  zUp = true,
-  fitXY = 3.0, // ширина в единицах сцены, под которую ужать модель по X/Y
-}) {
-  const raw = useLoader(STLLoader, url);
+/**
+ * Внутренняя сцена с клиппингом по Z.
+ */
+function ClippingScene({ currentLayer, layerHeight, layers }) {
+  const { gl } = useThree();
+  gl.localClippingEnabled = true;
 
-  // Готовим геометрию ОДИН РАЗ (клонируем, чтобы не мутировать исходную)
-  const prepared = React.useMemo(() => {
-    if (!raw) return null;
-    const geom = raw.clone();
+  const clipZ = useMemo(
+    () => currentLayer * layerHeight,
+    [currentLayer, layerHeight]
+  );
 
-    // 1) ориентация: Z вверх
-    if (zUp) geom.rotateX(Math.PI / 2);
+  const clippingPlane = useMemo(
+    () => new THREE.Plane(new THREE.Vector3(0, 0, -1), clipZ),
+    [clipZ]
+  );
 
-    // 2) центр по XY и «пяткой» на Z=0 (ставим на стол)
-    geom.computeBoundingBox();
-    const box = geom.boundingBox.clone();
-    const center = new THREE.Vector3();
-    box.getCenter(center);
-    geom.translate(-center.x, -center.y, -box.min.z);
+  const markerRef = useRef();
+  useFrame(() => {
+    if (markerRef.current) markerRef.current.position.z = clipZ + 0.001;
+  });
 
-    // 3) размеры после нормализации
-    geom.computeBoundingBox();
-    const size = new THREE.Vector3();
-    geom.boundingBox.getSize(size);
-
-    return { geom, size };
-  }, [raw, zUp]);
-
-  if (!prepared) {
-    return (
-      <mesh position={position} rotation={rotation} scale={scale * baseScale}>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color={color} clippingPlanes={clippingPlanes} />
-      </mesh>
-    );
-  }
-
-  // Авто-масштаб под ширину fitXY (по самой большой из X/Y)
-  const autoK = React.useMemo(() => {
-    const maxXY = Math.max(prepared.size.x, prepared.size.y) || 1;
-    return fitXY / maxXY;
-  }, [prepared.size, fitXY]);
-
-  const finalScale = scale * baseScale * autoK;
+  const materialProps = useMemo(
+    () => ({
+      color: "#9ae6b4",
+      clippingPlanes: [clippingPlane],
+      clipShadows: true,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      transparent: true,
+      opacity: 0.98,
+    }),
+    [clippingPlane]
+  );
 
   return (
-    <mesh
-      position={position}
-      rotation={rotation}
-      scale={finalScale}
-      castShadow
-      receiveShadow
-    >
-      <primitive object={prepared.geom} attach="geometry" />
-      <meshStandardMaterial
-        color={new THREE.Color(color)}
-        metalness={0.05}
-        roughness={0.8}
-        clippingPlanes={clippingPlanes}
-        side={THREE.FrontSide}
+    <>
+      <ambientLight intensity={0.6} />
+      <directionalLight position={[4, 5, 6]} intensity={0.8} castShadow />
+
+      <Grid
+        args={[20, 20]}
+        sectionColor="#2dd4bf"
+        cellColor="#334155"
+        position={[0, 0, -0.001]}
       />
-    </mesh>
+
+      {/* маркер текущего среза */}
+      <group ref={markerRef}>
+        <Plane args={[6, 6]} rotation={[-Math.PI / 2, 0, 0]}>
+          <meshBasicMaterial color="#22d3ee" transparent opacity={0.18} />
+        </Plane>
+      </group>
+
+      {/* пара тестовых мешей */}
+      <group position={[0, 0, 0]}>
+        <mesh castShadow receiveShadow position={[0, 0, 1.6]} scale={[1, 1, 3]}>
+          <torusKnotGeometry args={[0.4, 0.12, 180, 32]} />
+          <meshStandardMaterial {...materialProps} />
+        </mesh>
+
+        <mesh castShadow receiveShadow position={[1.2, -0.6, 1.2]}>
+          <boxGeometry args={[0.6, 0.6, 2.4]} />
+          <meshStandardMaterial
+            color="#fca5a5"
+            clippingPlanes={[clippingPlane]}
+            clipShadows
+          />
+        </mesh>
+      </group>
+
+      <OrbitControls makeDefault enableDamping dampingFactor={0.08} />
+    </>
+  );
+}
+
+/**
+ * Единственный default-экспорт модуля.
+ */
+export default function LayerSlicer({
+  currentLayer,
+  layerHeight,
+  layers,
+  // НОВОЕ: принимаем модели/цвета/масштаб (с дефолтами)
+  models = config.models || [],
+  modelColors = {},
+  scale = 1,
+}) {
+  const cameraProps = { position: [4, 4, 4], fov: 45 };
+
+  // НОВОЕ: та же плоскость среза для STL
+  const clipZ = useMemo(
+    () => currentLayer * layerHeight,
+    [currentLayer, layerHeight]
+  );
+  const slicingPlane = useMemo(
+    () => new THREE.Plane(new THREE.Vector3(0, 0, -1), clipZ),
+    [clipZ]
+  );
+
+  return (
+    <Canvas
+      shadows
+      camera={cameraProps}
+      style={{ height: "70vh", minHeight: 440 }}
+    >
+      <ClippingScene
+        currentLayer={currentLayer}
+        layerHeight={layerHeight}
+        layers={layers}
+      />
+
+      {/* STL-модели из конфига, режем той же плоскостью */}
+      {models.map((m) => (
+        <StlModel
+          key={m.id}
+          url={m.file}
+          color={modelColors[m.id] || "#cccccc"}
+          baseScale={m.scale || 1}
+          scale={scale}
+          position={m.position || [0, 0, 0]}
+          clippingPlanes={[slicingPlane]}
+        />
+      ))}
+    </Canvas>
   );
 }
