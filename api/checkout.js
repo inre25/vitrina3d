@@ -1,48 +1,4 @@
 // api/checkout.js
-function normHex(h) {
-  if (!h || typeof h !== "string") return null;
-  let x = h.trim().toLowerCase();
-  if (!x.startsWith("#")) x = "#" + x;
-  if (x.length === 4) {
-    // #abc -> #aabbcc
-    x = "#" + x[1] + x[1] + x[2] + x[2] + x[3] + x[3];
-  }
-  return x;
-}
-
-// Базовая палитра русских названий (можешь расширять при желании)
-const COLOR_MAP_RU = {
-  "#ffffff": "белый",
-  "#000000": "чёрный",
-  "#ff5252": "красный",
-  "#e91e63": "розовый",
-  "#ffa726": "оранжевый",
-  "#ff9800": "оранжевый",
-  "#ffc107": "янтарный",
-  "#ffee58": "жёлтый",
-  "#66bb6a": "зелёный",
-  "#4caf50": "зелёный",
-  "#8bc34a": "лаймовый",
-  "#cddc39": "салатовый",
-  "#00bcd4": "бирюзовый",
-  "#42a5f5": "синий",
-  "#2196f3": "синий",
-  "#ab47bc": "фиолетовый",
-  "#9c27b0": "фиолетовый",
-  "#795548": "коричневый",
-  "#9e9e9e": "серый",
-};
-
-function colorLabel(p) {
-  // приоритет: явное имя из фронта → словарь по hex → сам hex
-  if (p?.colorName) return p.colorName;
-  if (p?.colorLabel) return p.colorLabel;
-  const hx = normHex(p?.color);
-  if (!hx) return null;
-  const ru = COLOR_MAP_RU[hx] || COLOR_MAP_RU[hx.toLowerCase()];
-  return ru ? `${ru}` : hx;
-}
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ ok: false, errors: ["METHOD_NOT_ALLOWED"] });
@@ -57,12 +13,14 @@ export default async function handler(req, res) {
     total = 0,
   } = req.body || {};
 
+  // валидация
   const errors = [];
   if (!name.trim()) errors.push("NO_NAME");
   if (!phone.trim()) errors.push("NO_PHONE");
   if (!Array.isArray(cart) || cart.length === 0) errors.push("EMPTY_CART");
   if (errors.length) return res.status(400).json({ ok: false, errors });
 
+  // только Telegram
   const tkn = process.env.TELEGRAM_BOT_TOKEN;
   const chat = process.env.TELEGRAM_CHAT_ID;
   if (!tkn || !chat) {
@@ -71,6 +29,7 @@ export default async function handler(req, res) {
       .json({ ok: false, errors: ["MISSING_TELEGRAM_ENV"] });
   }
 
+  // формируем текст корзины
   const cartLines =
     cart
       .map((p, i) => {
@@ -80,9 +39,17 @@ export default async function handler(req, res) {
           price ? ` × ${price}` : ""
         }`;
 
+        // ИМЕНА БЕРЕМ ТОЛЬКО ИЗ ЗАКАЗА (никаких словарей на сервере)
         const opts = [];
-        const label = colorLabel(p);
-        if (label) opts.push(`цвет: ${label}`);
+        // новый формат A/B
+        if (p.colorA || p.colorAName)
+          opts.push(`цвет A: ${p.colorAName || p.colorA}`);
+        if (p.colorB || p.colorBName)
+          opts.push(`цвет B: ${p.colorBName || p.colorB}`);
+        // старый одиночный цвет
+        if (!p.colorA && !p.colorB && (p.color || p.colorName)) {
+          opts.push(`цвет: ${p.colorName || p.color}`);
+        }
         if (p.scale) opts.push(`масштаб: ${Number(p.scale).toFixed(1)}×`);
 
         const print = [];
@@ -120,11 +87,9 @@ export default async function handler(req, res) {
       body: JSON.stringify({ chat_id: chat, text }),
     });
 
-    return res.status(200).json({
-      ok: true,
-      channels: { telegram: true },
-      errors: [],
-    });
+    return res
+      .status(200)
+      .json({ ok: true, channels: { telegram: true }, errors: [] });
   } catch (e) {
     return res.status(200).json({
       ok: true,

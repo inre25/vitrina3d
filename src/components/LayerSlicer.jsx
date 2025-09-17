@@ -1,3 +1,6 @@
+// src/components/LayerSlicer.jsx
+import StlModel from "./StlModel.jsx";
+import config from "../config/admin.json";
 import { useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Grid, Plane } from "@react-three/drei";
@@ -82,7 +85,15 @@ function ClippingScene({ currentLayer, layerHeight, layers }) {
 /**
  * Единственный default-экспорт модуля.
  */
-export default function LayerSlicer({ currentLayer, layerHeight, layers }) {
+export default function LayerSlicer({
+  currentLayer,
+  layerHeight,
+  layers,
+  // НОВОЕ: принимаем пропсы для STL
+  models = config.models || [],
+  modelColors = {},
+  scale = 1,
+}) {
   const cameraProps = { position: [4, 4, 4], fov: 45 };
 
   return (
@@ -96,6 +107,19 @@ export default function LayerSlicer({ currentLayer, layerHeight, layers }) {
         layerHeight={layerHeight}
         layers={layers}
       />
+
+      {/* STL-модели из конфига */}
+      {models.map((m) => (
+        <StlModel
+          key={m.id}
+          url={m.file}
+          color={modelColors[m.id] || "#cccccc"}
+          baseScale={m.scale || 1}
+          scale={scale}
+          position={m.position || [0, 0, 0]}
+          // clippingPlanes не передаём — здесь переменной нет
+        />
+      ))}
     </Canvas>
   );
 }

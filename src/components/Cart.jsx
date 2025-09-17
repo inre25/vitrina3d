@@ -50,7 +50,37 @@ export default function Cart({ open, setOpen }) {
                       {it.qty || 1} × {it.price || 0} руб.
                     </div>
 
-                    {(it.color || it.scale) && (
+                    {/* Новое: если есть цвета A/B — показываем их */}
+                    {(it.colorA || it.colorB) && (
+                      <div className="mt-1 flex items-center gap-3 text-xs opacity-80">
+                        {it.colorA && (
+                          <span className="flex items-center gap-1">
+                            A:
+                            <span
+                              className="inline-block w-3 h-3 rounded-full ring-1 ring-white/20"
+                              style={{ backgroundColor: it.colorA }}
+                            />
+                            <span>{it.colorAName || it.colorA}</span>
+                          </span>
+                        )}
+                        {it.colorB && (
+                          <span className="flex items-center gap-1">
+                            B:
+                            <span
+                              className="inline-block w-3 h-3 rounded-full ring-1 ring-white/20"
+                              style={{ backgroundColor: it.colorB }}
+                            />
+                            <span>{it.colorBName || it.colorB}</span>
+                          </span>
+                        )}
+                        {it.scale ? (
+                          <span>• Масштаб: {Number(it.scale).toFixed(1)}×</span>
+                        ) : null}
+                      </div>
+                    )}
+
+                    {/* Fallback: старый формат (один цвет + масштаб) */}
+                    {!it.colorA && !it.colorB && (it.color || it.scale) && (
                       <div className="mt-1 flex items-center gap-2 text-xs opacity-80">
                         {it.color && (
                           <>
@@ -59,7 +89,7 @@ export default function Cart({ open, setOpen }) {
                               style={{ backgroundColor: it.color }}
                               title={it.color}
                             />
-                            <span>{it.color}</span>
+                            <span>{it.colorName || it.color}</span>
                           </>
                         )}
                         {it.color && it.scale ? <span>•</span> : null}

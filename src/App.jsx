@@ -5,20 +5,18 @@ import LayerSlicer from "./components/LayerSlicer.jsx";
 import CheckoutForm from "./components/CheckoutForm";
 import config from "./config/admin.json";
 
-// нормализуем палитру: поддерживаем и старый формат-строки, и новый {hex,name}
+// палитра (поддержка строк и {hex,name})
 const palette = (config.colors || []).map((c) =>
   typeof c === "string" ? { hex: c, name: null } : c
 );
 
 export default function App() {
-  // выбранная работа из каталога
   const [currentProductId, setCurrentProductId] = useState(
     config.products?.[0]?.id || null
   );
   const currentProduct =
     config.products.find((p) => p.id === currentProductId) || null;
 
-  // слайсер (псевдо)
   const [layerHeight, setLayerHeight] = useState(0.2);
   const [layers, setLayers] = useState(100);
   const [currentLayer, setCurrentLayer] = useState(50);
@@ -32,11 +30,9 @@ export default function App() {
     [currentLayer, layerHeight]
   );
 
-  // корзина
   const { items, addItem, clearCart } = useCart();
   const [cartOpen, setCartOpen] = useState(false);
 
-  // цена — из выбранной работы; иначе демо-формула
   const price = useMemo(() => {
     if (currentProduct?.price) return Number(currentProduct.price);
     return Number((currentHeightMM * 5).toFixed(2));
@@ -47,13 +43,20 @@ export default function App() {
     [items]
   );
 
-  // масштаб и активный цвет
+  // масштаб и ЦВЕТА ДЛЯ ДВУХ МОДЕЛЕЙ
   const [scale, setScale] = useState(1);
-  const [color, setColor] = useState(
-    palette[0] || { hex: "#ffffff", name: null }
-  );
+  const [activeModel, setActiveModel] = useState("a");
+  const [modelColors, setModelColors] = useState({
+    a: palette[0] || { hex: "#ffffff", name: "белый" },
+    b: palette[1] || { hex: "#000000", name: "черный" },
+  });
+
+  const applyColor = (c) =>
+    setModelColors((prev) => ({ ...prev, [activeModel]: c }));
 
   const handleAdd = () => {
+    const cA = modelColors.a || {};
+    const cB = modelColors.b || {};
     addItem({
       title: currentProduct?.title || "3D-печать (демо)",
       productId: currentProduct?.id || null,
@@ -62,8 +65,11 @@ export default function App() {
       currentLayer,
       heightMM: currentHeightMM,
       scale,
-      color: color.hex, // HEX
-      colorName: color.name, // ЧЕЛОВЕЧЕСКОЕ НАЗВАНИЕ
+      // записываем оба цвета
+      colorA: cA.hex,
+      colorAName: cA.name,
+      colorB: cB.hex,
+      colorBName: cB.name,
       price,
     });
     setCartOpen(true);
@@ -81,7 +87,6 @@ export default function App() {
             <button
               onClick={handleAdd}
               className="rounded-lg bg-emerald-500 hover:bg-emerald-600 px-3 py-2 font-semibold"
-              title="Добавить выбранную работу в корзину"
             >
               + В корзину ({price.toFixed(0)} руб.)
             </button>
@@ -94,7 +99,7 @@ export default function App() {
           </div>
         </header>
 
-        {/* КАТАЛОГ */}
+        {/* каталог как был */}
         <section className="mb-6">
           <h2 className="text-lg font-semibold mb-3">Каталог</h2>
           <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
@@ -128,88 +133,124 @@ export default function App() {
           </div>
         </section>
 
-        {/* НАСТРОЙКИ ДЛЯ ВЫБРАННОЙ РАБОТЫ */}
+        {/* настройки */}
         <section className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {config.permissions.enableSlice && (
-            <div className="rounded-2xl bg-white/5 p-4 shadow-xl ring-1 ring-white/10">
-              <label className="block text-sm mb-2">Текущий слой</label>
-              <input
-                type="range"
-                min={0}
-                max={layers}
-                value={currentLayer}
-                onChange={(e) => setCurrentLayer(parseInt(e.target.value))}
-                className="w-full"
-              />
-              <div className="mt-2 text-sm opacity-90">
-                <div>
-                  Слой: <b>{currentLayer}</b> / {layers}
-                </div>
-                <div>
-                  Высота: <b>{currentHeightMM} мм</b> из {maxHeightMM} мм
-                </div>
+          <div className="rounded-2xl bg-white/5 p-4 shadow-xl ring-1 ring-white/10">
+            <label className="block text-sm mb-2">Текущий слой</label>
+            <input
+              type="range"
+              min={0}
+              max={layers}
+              value={currentLayer}
+              onChange={(e) => setCurrentLayer(parseInt(e.target.value))}
+              className="w-full"
+            />
+            <div className="mt-2 text-sm opacity-90">
+              <div>
+                Слой: <b>{currentLayer}</b> / {layers}
+              </div>
+              <div>
+                Высота: <b>{currentHeightMM} мм</b> из {maxHeightMM} мм
               </div>
             </div>
-          )}
+          </div>
 
-          {config.permissions.enableScale && (
-            <div className="rounded-2xl bg-white/5 p-4 shadow-xl ring-1 ring-white/10">
-              <label className="block text-sm mb-2">Масштаб</label>
-              <input
-                type="range"
-                min={config.scale.min}
-                max={config.scale.max}
-                step={config.scale.step}
-                value={scale}
-                onChange={(e) => setScale(Number(e.target.value))}
-                className="w-full"
-              />
-              <div className="mt-2 text-sm opacity-90">
-                Текущее: <b>{scale.toFixed(1)}×</b>
+          <div className="rounded-2xl bg-white/5 p-4 shadow-xl ring-1 ring-white/10">
+            <label className="block text-sm mb-2">Масштаб</label>
+            <input
+              type="range"
+              min={config.scale.min}
+              max={config.scale.max}
+              step={config.scale.step}
+              value={scale}
+              onChange={(e) => setScale(Number(e.target.value))}
+              className="w-full"
+            />
+            <div className="mt-2 text-sm opacity-90">
+              Текущее: <b>{scale.toFixed(1)}×</b>
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-white/5 p-4 shadow-xl ring-1 ring-white/10">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm">Цвет (палитра админа)</label>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveModel("a")}
+                  className={`px-2 py-1 rounded text-xs ${
+                    activeModel === "a"
+                      ? "bg-emerald-600"
+                      : "bg-slate-700 hover:bg-slate-600"
+                  }`}
+                >
+                  Фигура A
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveModel("b")}
+                  className={`px-2 py-1 rounded text-xs ${
+                    activeModel === "b"
+                      ? "bg-emerald-600"
+                      : "bg-slate-700 hover:bg-slate-600"
+                  }`}
+                >
+                  Фигура B
+                </button>
               </div>
             </div>
-          )}
 
-          {config.permissions.enableColors && (
-            <div className="rounded-2xl bg-white/5 p-4 shadow-xl ring-1 ring-white/10">
-              <label className="block text-sm mb-2">
-                Цвет (палитра админа)
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {palette.map((c) => (
-                  <button
-                    key={c.hex}
-                    type="button"
-                    onClick={() => setColor(c)}
-                    className={`w-7 h-7 rounded-full ring-2 transition ${
-                      color.hex === c.hex ? "ring-white" : "ring-white/20"
-                    }`}
-                    style={{ backgroundColor: c.hex }}
-                    title={c.name || c.hex}
-                    aria-label={`Цвет ${c.name || c.hex}`}
-                  />
-                ))}
-              </div>
-              <div className="mt-2 text-sm opacity-90 flex items-center gap-2">
-                Выбрано:
+            <div className="flex flex-wrap gap-2">
+              {palette.map((c) => (
+                <button
+                  key={c.hex}
+                  type="button"
+                  onClick={() => applyColor(c)}
+                  className={`w-7 h-7 rounded-full ring-2 transition ${
+                    modelColors[activeModel]?.hex === c.hex
+                      ? "ring-white"
+                      : "ring-white/20"
+                  }`}
+                  style={{ backgroundColor: c.hex }}
+                  title={c.name || c.hex}
+                />
+              ))}
+            </div>
+
+            <div className="mt-2 text-sm opacity-90 flex items-center gap-4">
+              <span className="flex items-center gap-2">
+                A:
                 <span
-                  className="inline-block w-4 h-4 rounded-full ring-1 ring-white/30"
-                  style={{ backgroundColor: color.hex }}
+                  className="w-4 h-4 rounded-full ring-1 ring-white/30"
+                  style={{ backgroundColor: modelColors.a?.hex }}
                 />
                 <code className="text-xs opacity-70">
-                  {color.name || color.hex}
+                  {modelColors.a?.name || modelColors.a?.hex}
                 </code>
-              </div>
+              </span>
+              <span className="flex items-center gap-2">
+                B:
+                <span
+                  className="w-4 h-4 rounded-full ring-1 ring-white/30"
+                  style={{ backgroundColor: modelColors.b?.hex }}
+                />
+                <code className="text-xs opacity-70">
+                  {modelColors.b?.name || modelColors.b?.hex}
+                </code>
+              </span>
             </div>
-          )}
+          </div>
         </section>
 
-        {/* СЦЕНА */}
+        {/* СЦЕНА с двумя STL */}
         <div className="rounded-3xl bg-black/40 ring-1 ring-white/10 shadow-2xl overflow-hidden">
           <LayerSlicer
             currentLayer={currentLayer}
             layerHeight={layerHeight}
             layers={layers}
+            models={config.models}
+            modelColors={{ a: modelColors.a?.hex, b: modelColors.b?.hex }}
+            scale={scale}
           />
         </div>
 
@@ -218,10 +259,8 @@ export default function App() {
         </footer>
       </div>
 
-      {/* модалка корзины */}
       <Cart open={cartOpen} setOpen={setCartOpen} />
 
-      {/* форма оформления */}
       {items.length > 0 && (
         <section id="checkout" className="max-w-5xl mx-auto my-8">
           <CheckoutForm
