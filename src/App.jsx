@@ -5,6 +5,11 @@ import LayerSlicer from "./components/LayerSlicer.jsx";
 import CheckoutForm from "./components/CheckoutForm";
 import config from "./config/admin.json";
 
+// нормализуем палитру: поддерживаем и старый формат-строки, и новый {hex,name}
+const palette = (config.colors || []).map((c) =>
+  typeof c === "string" ? { hex: c, name: null } : c
+);
+
 export default function App() {
   // выбранная работа из каталога
   const [currentProductId, setCurrentProductId] = useState(
@@ -31,10 +36,10 @@ export default function App() {
   const { items, addItem, clearCart } = useCart();
   const [cartOpen, setCartOpen] = useState(false);
 
-  // цена — берём из выбранной работы; если нет — фолбэк демо
+  // цена — из выбранной работы; иначе демо-формула
   const price = useMemo(() => {
     if (currentProduct?.price) return Number(currentProduct.price);
-    return Number((currentHeightMM * 5).toFixed(2)); // демо формула
+    return Number((currentHeightMM * 5).toFixed(2));
   }, [currentProduct, currentHeightMM]);
 
   const totalSum = useMemo(
@@ -42,9 +47,11 @@ export default function App() {
     [items]
   );
 
-  // масштаб и активный цвет (из конфига)
+  // масштаб и активный цвет
   const [scale, setScale] = useState(1);
-  const [color, setColor] = useState(config.colors?.[0] || "#ffffff");
+  const [color, setColor] = useState(
+    palette[0] || { hex: "#ffffff", name: null }
+  );
 
   const handleAdd = () => {
     addItem({
@@ -55,7 +62,8 @@ export default function App() {
       currentLayer,
       heightMM: currentHeightMM,
       scale,
-      color, // ← СЮДА КЛАДЁМ ВЫБРАННЫЙ ЦВЕТ
+      color: color.hex, // HEX
+      colorName: color.name, // ЧЕЛОВЕЧЕСКОЕ НАЗВАНИЕ
       price,
     });
     setCartOpen(true);
@@ -86,7 +94,7 @@ export default function App() {
           </div>
         </header>
 
-        {/* КАТАЛОГ из admin.json */}
+        {/* КАТАЛОГ */}
         <section className="mb-6">
           <h2 className="text-lg font-semibold mb-3">Каталог</h2>
           <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
@@ -120,7 +128,7 @@ export default function App() {
           </div>
         </section>
 
-        {/* ВИДЖЕТ НАСТРОЕК ДЛЯ ВЫБРАННОЙ РАБОТЫ */}
+        {/* НАСТРОЙКИ ДЛЯ ВЫБРАННОЙ РАБОТЫ */}
         <section className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {config.permissions.enableSlice && (
             <div className="rounded-2xl bg-white/5 p-4 shadow-xl ring-1 ring-white/10">
@@ -168,17 +176,17 @@ export default function App() {
                 Цвет (палитра админа)
               </label>
               <div className="flex flex-wrap gap-2">
-                {config.colors.map((c) => (
+                {palette.map((c) => (
                   <button
-                    key={c}
+                    key={c.hex}
                     type="button"
                     onClick={() => setColor(c)}
                     className={`w-7 h-7 rounded-full ring-2 transition ${
-                      color === c ? "ring-white" : "ring-white/20"
+                      color.hex === c.hex ? "ring-white" : "ring-white/20"
                     }`}
-                    style={{ backgroundColor: c }}
-                    title={c}
-                    aria-label={`Цвет ${c}`}
+                    style={{ backgroundColor: c.hex }}
+                    title={c.name || c.hex}
+                    aria-label={`Цвет ${c.name || c.hex}`}
                   />
                 ))}
               </div>
@@ -186,9 +194,11 @@ export default function App() {
                 Выбрано:
                 <span
                   className="inline-block w-4 h-4 rounded-full ring-1 ring-white/30"
-                  style={{ backgroundColor: color }}
+                  style={{ backgroundColor: color.hex }}
                 />
-                <code className="text-xs opacity-70">{color}</code>
+                <code className="text-xs opacity-70">
+                  {color.name || color.hex}
+                </code>
               </div>
             </div>
           )}
