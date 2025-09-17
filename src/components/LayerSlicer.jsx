@@ -63,6 +63,8 @@ export default function LayerSlicer({
           scale={scale}
           position={m.position || [0, 0, 0]}
           clippingPlanes={[slicingPlane]}
+          upAxis={m.upAxis || "z"} // ← НОВОЕ
+          fitXY={m.fitXY || 120} // ← НОВОЕ (пока пусть 120 мм)
         />
       ))}
     </Canvas>

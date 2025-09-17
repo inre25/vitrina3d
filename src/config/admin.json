@@ -42,15 +42,19 @@
   "models": [
     {
       "id": "a",
-      "file": "/models/Large1.stl",
+      "file": "/models/figure-a.stl",
       "scale": 1,
-      "position": [-0.7, 0, 0]
+      "position": [-40, 0, 0],
+      "upAxis": "y",
+      "fitXY": 120
     },
     {
       "id": "b",
-      "file": "/models/Large2.stl",
+      "file": "/models/figure-b.stl",
       "scale": 1,
-      "position": [0.7, 0, 0]
+      "position": [40, 0, 0],
+      "upAxis": "y",
+      "fitXY": 120
     }
   ]
 }
