@@ -3,8 +3,17 @@ import { useCart } from "./store/cart";
 import Cart from "./components/Cart";
 import LayerSlicer from "./components/LayerSlicer.jsx";
 import CheckoutForm from "./components/CheckoutForm";
+import config from "./config/admin.json";
 
 export default function App() {
+  // выбранная работа из каталога
+  const [currentProductId, setCurrentProductId] = useState(
+    config.products?.[0]?.id || null
+  );
+  const currentProduct =
+    config.products.find((p) => p.id === currentProductId) || null;
+
+  // слайсер (псевдо)
   const [layerHeight, setLayerHeight] = useState(0.2);
   const [layers, setLayers] = useState(100);
   const [currentLayer, setCurrentLayer] = useState(50);
@@ -18,14 +27,15 @@ export default function App() {
     [currentLayer, layerHeight]
   );
 
-  // === корзина ===
+  // корзина
   const { items, addItem, clearCart } = useCart();
   const [cartOpen, setCartOpen] = useState(false);
 
-  const price = useMemo(
-    () => Number((currentHeightMM * 5).toFixed(2)),
-    [currentHeightMM]
-  );
+  // цена — берём из выбранной работы; если нет — фолбэк демо
+  const price = useMemo(() => {
+    if (currentProduct?.price) return Number(currentProduct.price);
+    return Number((currentHeightMM * 5).toFixed(2)); // демо формула
+  }, [currentProduct, currentHeightMM]);
 
   const totalSum = useMemo(
     () => items.reduce((s, it) => s + (it.price || 0) * (it.qty || 1), 0),
@@ -34,7 +44,8 @@ export default function App() {
 
   const handleAdd = () => {
     addItem({
-      title: "3D-печать (демо)",
+      title: currentProduct?.title || "3D-печать (демо)",
+      productId: currentProduct?.id || null,
       layerHeight,
       layers,
       currentLayer,
@@ -43,23 +54,25 @@ export default function App() {
     });
     setCartOpen(true);
   };
-  // =================
+
+  // скейл — из конфига (пока не подключаем к 3D, просто выводим слайдер)
+  const [scale, setScale] = useState(1);
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-indigo-950 via-indigo-900 to-purple-900 text-white">
       <div className="mx-auto max-w-7xl px-4 py-6">
         <header className="mb-6 flex items-baseline justify-between">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-            уже хоть телега работает
+            Витрина3D
           </h1>
 
           <div className="flex items-center gap-2">
             <button
               onClick={handleAdd}
               className="rounded-lg bg-emerald-500 hover:bg-emerald-600 px-3 py-2 font-semibold"
-              title="Добавить текущую конфигурацию в корзину"
+              title="Добавить выбранную работу в корзину"
             >
-              + В корзину ({price.toFixed(2)})
+              + В корзину ({price.toFixed(0)})
             </button>
             <button
               onClick={() => setCartOpen(true)}
@@ -70,68 +83,106 @@ export default function App() {
           </div>
         </header>
 
-        <section className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-2xl bg-white/5 p-4 shadow-xl ring-1 ring-white/10">
-            <label className="block text-sm mb-2">Текущий слой</label>
-            <input
-              type="range"
-              min={0}
-              max={layers}
-              value={currentLayer}
-              onChange={(e) => setCurrentLayer(parseInt(e.target.value))}
-              className="w-full"
-            />
-            <div className="mt-2 text-sm opacity-90">
-              <div>
-                Слой: <b>{currentLayer}</b> / {layers}
-              </div>
-              <div>
-                Высота: <b>{currentHeightMM} мм</b> из {maxHeightMM} мм
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl bg-white/5 p-4 shadow-xl ring-1 ring-white/10">
-            <label className="block text-sm mb-2">Высота слоя (мм)</label>
-            <input
-              type="range"
-              min={0.05}
-              max={0.4}
-              step={0.05}
-              value={layerHeight}
-              onChange={(e) => setLayerHeight(Number(e.target.value))}
-              className="w-full"
-            />
-            <div className="mt-2 text-sm opacity-90">
-              <div>
-                Текущее: <b>{layerHeight} мм</b>
-              </div>
-              <div className="opacity-70">Обычно 0.08–0.28 мм</div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl bg-white/5 p-4 shadow-xl ring-1 ring-white/10">
-            <label className="block text-sm mb-2">Количество слоёв</label>
-            <input
-              type="range"
-              min={20}
-              max={300}
-              step={1}
-              value={layers}
-              onChange={(e) => setLayers(parseInt(e.target.value))}
-              className="w-full"
-            />
-            <div className="mt-2 text-sm opacity-90">
-              <div>
-                Всего слоёв: <b>{layers}</b>
-              </div>
-              <div>
-                Макс. высота: <b>{maxHeightMM} мм</b>
-              </div>
-            </div>
+        {/* КАТАЛОГ из admin.json */}
+        <section className="mb-6">
+          <h2 className="text-lg font-semibold mb-3">Каталог</h2>
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+            {config.products.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setCurrentProductId(p.id)}
+                className={`text-left rounded-xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 p-3 transition ${
+                  currentProductId === p.id
+                    ? "outline outline-2 outline-emerald-500"
+                    : ""
+                }`}
+                title={p.title}
+              >
+                <div className="aspect-[4/3] w-full rounded-lg bg-black/30 flex items-center justify-center overflow-hidden">
+                  {p.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={p.image}
+                      alt={p.title}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className="text-xs opacity-60">нет изображения</span>
+                  )}
+                </div>
+                <div className="mt-2 text-sm font-medium">{p.title}</div>
+                <div className="text-xs opacity-80">{p.price} руб.</div>
+              </button>
+            ))}
           </div>
         </section>
 
+        {/* ВИДЖЕТ НАСТРОЕК ДЛЯ ВЫБРАННОЙ РАБОТЫ */}
+        <section className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {config.permissions.enableSlice && (
+            <div className="rounded-2xl bg-white/5 p-4 shadow-xl ring-1 ring-white/10">
+              <label className="block text-sm mb-2">Текущий слой</label>
+              <input
+                type="range"
+                min={0}
+                max={layers}
+                value={currentLayer}
+                onChange={(e) => setCurrentLayer(parseInt(e.target.value))}
+                className="w-full"
+              />
+              <div className="mt-2 text-sm opacity-90">
+                <div>
+                  Слой: <b>{currentLayer}</b> / {layers}
+                </div>
+                <div>
+                  Высота: <b>{currentHeightMM} мм</b> из {maxHeightMM} мм
+                </div>
+              </div>
+            </div>
+          )}
+
+          {config.permissions.enableScale && (
+            <div className="rounded-2xl bg-white/5 p-4 shadow-xl ring-1 ring-white/10">
+              <label className="block text-sm mb-2">Масштаб</label>
+              <input
+                type="range"
+                min={config.scale.min}
+                max={config.scale.max}
+                step={config.scale.step}
+                value={scale}
+                onChange={(e) => setScale(Number(e.target.value))}
+                className="w-full"
+              />
+              <div className="mt-2 text-sm opacity-90">
+                Текущее: <b>{scale.toFixed(1)}×</b>
+              </div>
+            </div>
+          )}
+
+          {config.permissions.enableColors && (
+            <div className="rounded-2xl bg-white/5 p-4 shadow-xl ring-1 ring-white/10">
+              <label className="block text-sm mb-2">
+                Цвета (палитра админа)
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {config.colors.map((c) => (
+                  <span
+                    key={c}
+                    title={c}
+                    className="w-7 h-7 rounded-full ring-1 ring-white/20"
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+              </div>
+              <div className="mt-2 text-xs opacity-70">
+                (на следующем шаге привяжем к слоям/объектам)
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* СЦЕНА */}
         <div className="rounded-3xl bg-black/40 ring-1 ring-white/10 shadow-2xl overflow-hidden">
           <LayerSlicer
             currentLayer={currentLayer}
