@@ -1,6 +1,5 @@
 // src/components/StlModel.jsx
-import React, { useMemo } from "react";
-import { useLoader } from "@react-three/fiber";
+import React, { useEffect, useMemo, useState } from "react";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader";
 import * as THREE from "three";
 
@@ -12,46 +11,62 @@ export default function StlModel({
   position = [0, 0, 0],
   rotation = [0, 0, 0],
   clippingPlanes = [],
-  // НОВОЕ: ось «вверх» исходного STL: 'z' (по умолчанию) или 'y'
-  upAxis = "z",
-  // ширина, под которую ужимаем модель по XY (единицы сцены == мм)
-  fitXY = 120,
+  upAxis = "z", // 'z' (по умолчанию) или 'y' — как приходит STL
+  fitXY = 120, // «ширина» на столе в условных мм
 }) {
-  const raw = useLoader(STLLoader, url);
+  const [geom, setGeom] = useState(null);
+  const [errored, setErrored] = useState(false);
 
-  // Готовим геометрию один раз
-  const prepared = useMemo(() => {
-    if (!raw) return null;
-    const geom = raw.clone();
+  // Грузим STL вручную, ловим ошибки, ничего не бросаем в React
+  useEffect(() => {
+    let mounted = true;
+    setGeom(null);
+    setErrored(false);
 
-    // Приводим к Z-up, если исходник Y-up
-    if (upAxis === "y") geom.rotateX(Math.PI / 2);
+    const loader = new STLLoader();
+    loader.load(
+      url,
+      (g) => {
+        if (!mounted) return;
 
-    // Центр по XY и «пяткой» на Z=0
-    geom.computeBoundingBox();
-    const box = geom.boundingBox.clone();
-    const center = new THREE.Vector3();
-    box.getCenter(center);
-    geom.translate(-center.x, -center.y, -box.min.z);
+        // Ориентация: приводим к Z-up, если исходник Y-up
+        const geom = g.clone();
+        if (upAxis === "y") geom.rotateX(Math.PI / 2);
 
-    // Размеры после нормализации
-    geom.computeBoundingBox();
+        // Центр по XY и «пяткой» на Z=0
+        geom.computeBoundingBox();
+        const box = geom.boundingBox.clone();
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        geom.translate(-center.x, -center.y, -box.min.z);
+
+        geom.computeBoundingBox();
+        setGeom(geom);
+      },
+      undefined,
+      (err) => {
+        console.error("STL load failed:", url, err);
+        if (mounted) setErrored(true);
+      }
+    );
+
+    return () => {
+      mounted = false;
+    };
+  }, [url, upAxis]);
+
+  // Авто-масштаб под fitXY (после нормализации геометрии)
+  const finalScale = useMemo(() => {
+    if (!geom) return 0; // пока грузится — не рисуем
     const size = new THREE.Vector3();
     geom.boundingBox.getSize(size);
+    const maxXY = Math.max(size.x, size.y) || 1;
+    const autoK = fitXY / maxXY;
+    return scale * baseScale * autoK;
+  }, [geom, scale, baseScale, fitXY]);
 
-    return { geom, size };
-  }, [raw, upAxis]);
-
-  // Авто-масштаб по XY под fitXY
-  const autoK = useMemo(() => {
-    if (!prepared) return 1;
-    const maxXY = Math.max(prepared.size.x, prepared.size.y) || 1;
-    return fitXY / maxXY;
-  }, [prepared, fitXY]);
-
-  const finalScale = scale * baseScale * autoK;
-
-  if (!prepared) return null;
+  if (errored) return null;
+  if (!geom) return null;
 
   return (
     <mesh
@@ -61,7 +76,7 @@ export default function StlModel({
       castShadow
       receiveShadow
     >
-      <primitive object={prepared.geom} attach="geometry" />
+      <primitive object={geom} attach="geometry" />
       <meshStandardMaterial
         color={new THREE.Color(color)}
         metalness={0.05}
