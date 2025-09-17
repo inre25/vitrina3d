@@ -1,4 +1,3 @@
-// src/components/Cart.jsx
 import { useCart } from "../store/cart";
 
 export default function Cart({ open, setOpen }) {
@@ -48,8 +47,27 @@ export default function Cart({ open, setOpen }) {
                   <div className="text-sm">
                     <div className="font-medium">{it.title || "Товар"}</div>
                     <div className="opacity-80">
-                      {it.qty || 1} × {it.price || 0} ₽
+                      {it.qty || 1} × {it.price || 0} руб.
                     </div>
+
+                    {(it.color || it.scale) && (
+                      <div className="mt-1 flex items-center gap-2 text-xs opacity-80">
+                        {it.color && (
+                          <>
+                            <span
+                              className="inline-block w-3 h-3 rounded-full ring-1 ring-white/20"
+                              style={{ backgroundColor: it.color }}
+                              title={it.color}
+                            />
+                            <span>{it.color}</span>
+                          </>
+                        )}
+                        {it.color && it.scale ? <span>•</span> : null}
+                        {it.scale ? (
+                          <span>Масштаб: {Number(it.scale).toFixed(1)}×</span>
+                        ) : null}
+                      </div>
+                    )}
                   </div>
                 </li>
               ))}
@@ -60,7 +78,7 @@ export default function Cart({ open, setOpen }) {
                 Товаров: <b>{totalCount}</b>
               </div>
               <div>
-                Итого: <b>{totalSum.toFixed(2)} ₽</b>
+                Итого: <b>{totalSum.toFixed(2)} руб.</b>
               </div>
             </div>
 
@@ -73,7 +91,7 @@ export default function Cart({ open, setOpen }) {
                 Очистить
               </button>
 
-              {/* ВАЖНО: НИКАКИХ fetch здесь! Только закрыть и проскроллить к форме */}
+              {/* НИКАКИХ fetch здесь! Только закрыть и проскроллить к форме */}
               <button
                 type="button"
                 onClick={() => {

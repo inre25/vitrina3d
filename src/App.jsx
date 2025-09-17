@@ -42,6 +42,10 @@ export default function App() {
     [items]
   );
 
+  // масштаб и активный цвет (из конфига)
+  const [scale, setScale] = useState(1);
+  const [color, setColor] = useState(config.colors?.[0] || "#ffffff");
+
   const handleAdd = () => {
     addItem({
       title: currentProduct?.title || "3D-печать (демо)",
@@ -50,13 +54,12 @@ export default function App() {
       layers,
       currentLayer,
       heightMM: currentHeightMM,
+      scale,
+      color, // ← СЮДА КЛАДЁМ ВЫБРАННЫЙ ЦВЕТ
       price,
     });
     setCartOpen(true);
   };
-
-  // скейл — из конфига (пока не подключаем к 3D, просто выводим слайдер)
-  const [scale, setScale] = useState(1);
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-indigo-950 via-indigo-900 to-purple-900 text-white">
@@ -72,7 +75,7 @@ export default function App() {
               className="rounded-lg bg-emerald-500 hover:bg-emerald-600 px-3 py-2 font-semibold"
               title="Добавить выбранную работу в корзину"
             >
-              + В корзину ({price.toFixed(0)})
+              + В корзину ({price.toFixed(0)} руб.)
             </button>
             <button
               onClick={() => setCartOpen(true)}
@@ -100,7 +103,6 @@ export default function App() {
               >
                 <div className="aspect-[4/3] w-full rounded-lg bg-black/30 flex items-center justify-center overflow-hidden">
                   {p.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={p.image}
                       alt={p.title}
@@ -163,20 +165,30 @@ export default function App() {
           {config.permissions.enableColors && (
             <div className="rounded-2xl bg-white/5 p-4 shadow-xl ring-1 ring-white/10">
               <label className="block text-sm mb-2">
-                Цвета (палитра админа)
+                Цвет (палитра админа)
               </label>
               <div className="flex flex-wrap gap-2">
                 {config.colors.map((c) => (
-                  <span
+                  <button
                     key={c}
-                    title={c}
-                    className="w-7 h-7 rounded-full ring-1 ring-white/20"
+                    type="button"
+                    onClick={() => setColor(c)}
+                    className={`w-7 h-7 rounded-full ring-2 transition ${
+                      color === c ? "ring-white" : "ring-white/20"
+                    }`}
                     style={{ backgroundColor: c }}
+                    title={c}
+                    aria-label={`Цвет ${c}`}
                   />
                 ))}
               </div>
-              <div className="mt-2 text-xs opacity-70">
-                (на следующем шаге привяжем к слоям/объектам)
+              <div className="mt-2 text-sm opacity-90 flex items-center gap-2">
+                Выбрано:
+                <span
+                  className="inline-block w-4 h-4 rounded-full ring-1 ring-white/30"
+                  style={{ backgroundColor: color }}
+                />
+                <code className="text-xs opacity-70">{color}</code>
               </div>
             </div>
           )}
