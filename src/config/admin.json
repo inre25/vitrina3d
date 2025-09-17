@@ -42,17 +42,15 @@
   "models": [
     {
       "id": "a",
-      "title": "Фигура A",
       "file": "/models/Large1.stl",
       "scale": 1,
-      "position": [-30, 0, 0]
+      "position": [-0.7, 0, 0]
     },
     {
       "id": "b",
-      "title": "Фигура B",
       "file": "/models/Large2.stl",
       "scale": 1,
-      "position": [30, 0, 0]
+      "position": [0.7, 0, 0]
     }
   ]
 }
