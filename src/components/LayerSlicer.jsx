@@ -1,7 +1,7 @@
 // src/components/LayerSlicer.jsx
+import React, { useMemo, Suspense } from "react"; // ← ДОБАВИЛИ Suspense
 import StlModel from "./StlModel.jsx";
 import config from "../config/admin.json";
-import { useMemo } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, Grid } from "@react-three/drei";
 import * as THREE from "three";
@@ -30,14 +30,14 @@ function ClippingScene() {
 export default function LayerSlicer({
   currentLayer,
   layerHeight,
-  layers, // сейчас не используем, оставлен на будущее
+  layers,
   models = config.models || [],
   modelColors = {},
   scale = 1,
 }) {
   const cameraProps = { position: [4, 4, 4], fov: 45 };
 
-  // та же плоскость среза, которую передаём в STL-модели
+  // плоскость среза (сверху вниз по Z)
   const clipZ = useMemo(
     () => currentLayer * layerHeight,
     [currentLayer, layerHeight]
@@ -54,19 +54,22 @@ export default function LayerSlicer({
       style={{ height: "70vh", minHeight: 440 }}
     >
       <ClippingScene />
-      {models.map((m) => (
-        <StlModel
-          key={m.id}
-          url={m.file}
-          color={modelColors[m.id] || "#cccccc"}
-          baseScale={m.scale || 1}
-          scale={scale}
-          position={m.position || [0, 0, 0]}
-          clippingPlanes={[slicingPlane]}
-          upAxis={m.upAxis || "z"} // ← НОВОЕ
-          fitXY={m.fitXY || 120} // ← НОВОЕ (пока пусть 120 мм)
-        />
-      ))}
+      {/* ВАЖНО: оборачиваем модели в Suspense, чтобы не падать при загрузке */}
+      <Suspense fallback={null}>
+        {models.map((m) => (
+          <StlModel
+            key={m.id}
+            url={m.file}
+            color={modelColors[m.id] || "#cccccc"}
+            baseScale={m.scale || 1}
+            scale={scale}
+            position={m.position || [0, 0, 0]}
+            clippingPlanes={[slicingPlane]}
+            upAxis={m.upAxis || "z"} // ← из admin.json
+            fitXY={m.fitXY ?? 120} // ← из admin.json (мм по XY)
+          />
+        ))}
+      </Suspense>
     </Canvas>
   );
 }
