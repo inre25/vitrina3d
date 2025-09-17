@@ -12,32 +12,37 @@ export default function StlModel({
   position = [0, 0, 0],
   rotation = [0, 0, 0],
   clippingPlanes = [],
-  zUp = true,
-  fitXY = 3.0, // ширина на столе в единицах сцены
+  // НОВОЕ: ось «вверх» исходного STL: 'z' (по умолчанию) или 'y'
+  upAxis = "z",
+  // ширина, под которую ужимаем модель по XY (единицы сцены == мм)
+  fitXY = 120,
 }) {
   const raw = useLoader(STLLoader, url);
 
-  // готовим геометрию ОДИН РАЗ
+  // Готовим геометрию один раз
   const prepared = useMemo(() => {
     if (!raw) return null;
     const geom = raw.clone();
 
-    if (zUp) geom.rotateX(Math.PI / 2);
+    // Приводим к Z-up, если исходник Y-up
+    if (upAxis === "y") geom.rotateX(Math.PI / 2);
 
+    // Центр по XY и «пяткой» на Z=0
     geom.computeBoundingBox();
     const box = geom.boundingBox.clone();
     const center = new THREE.Vector3();
     box.getCenter(center);
-    geom.translate(-center.x, -center.y, -box.min.z); // поставить на стол
+    geom.translate(-center.x, -center.y, -box.min.z);
 
+    // Размеры после нормализации
     geom.computeBoundingBox();
     const size = new THREE.Vector3();
     geom.boundingBox.getSize(size);
 
     return { geom, size };
-  }, [raw, zUp]);
+  }, [raw, upAxis]);
 
-  // БЕЗОПАСНО: ждём prepared, иначе 1
+  // Авто-масштаб по XY под fitXY
   const autoK = useMemo(() => {
     if (!prepared) return 1;
     const maxXY = Math.max(prepared.size.x, prepared.size.y) || 1;
@@ -46,7 +51,6 @@ export default function StlModel({
 
   const finalScale = scale * baseScale * autoK;
 
-  // пока грузится — ничего не рисуем (чтобы не трогать hooks до prepared)
   if (!prepared) return null;
 
   return (
