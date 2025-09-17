@@ -1,135 +1,81 @@
-// src/components/LayerSlicer.jsx
-import StlModel from "./StlModel.jsx";
-import config from "../config/admin.json";
-import { useMemo, useRef } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Grid, Plane } from "@react-three/drei";
+// src/components/StlModel.jsx
+import { useLoader } from "@react-three/fiber";
+import { STLLoader } from "three/examples/jsm/loaders/STLLoader";
 import * as THREE from "three";
 
-/**
- * Внутренняя сцена с клиппингом по Z.
- */
-function ClippingScene({ currentLayer, layerHeight, layers }) {
-  const { gl } = useThree();
-  gl.localClippingEnabled = true;
-
-  const clipZ = useMemo(
-    () => currentLayer * layerHeight,
-    [currentLayer, layerHeight]
-  );
-
-  const clippingPlane = useMemo(
-    () => new THREE.Plane(new THREE.Vector3(0, 0, -1), clipZ),
-    [clipZ]
-  );
-
-  const markerRef = useRef();
-  useFrame(() => {
-    if (markerRef.current) markerRef.current.position.z = clipZ + 0.001;
-  });
-
-  const materialProps = useMemo(
-    () => ({
-      color: "#9ae6b4",
-      clippingPlanes: [clippingPlane],
-      clipShadows: true,
-      polygonOffset: true,
-      polygonOffsetFactor: 1,
-      transparent: true,
-      opacity: 0.98,
-    }),
-    [clippingPlane]
-  );
-
-  return (
-    <>
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[4, 5, 6]} intensity={0.8} castShadow />
-
-      <Grid
-        args={[20, 20]}
-        sectionColor="#2dd4bf"
-        cellColor="#334155"
-        position={[0, 0, -0.001]}
-      />
-
-      {/* маркер текущего среза */}
-      <group ref={markerRef}>
-        <Plane args={[6, 6]} rotation={[-Math.PI / 2, 0, 0]}>
-          <meshBasicMaterial color="#22d3ee" transparent opacity={0.18} />
-        </Plane>
-      </group>
-
-      {/* пара тестовых мешей */}
-      <group position={[0, 0, 0]}>
-        <mesh castShadow receiveShadow position={[0, 0, 1.6]} scale={[1, 1, 3]}>
-          <torusKnotGeometry args={[0.4, 0.12, 180, 32]} />
-          <meshStandardMaterial {...materialProps} />
-        </mesh>
-
-        <mesh castShadow receiveShadow position={[1.2, -0.6, 1.2]}>
-          <boxGeometry args={[0.6, 0.6, 2.4]} />
-          <meshStandardMaterial
-            color="#fca5a5"
-            clippingPlanes={[clippingPlane]}
-            clipShadows
-          />
-        </mesh>
-      </group>
-
-      <OrbitControls makeDefault enableDamping dampingFactor={0.08} />
-    </>
-  );
-}
-
-/**
- * Единственный default-экспорт модуля.
- */
-export default function LayerSlicer({
-  currentLayer,
-  layerHeight,
-  layers,
-  // НОВОЕ: принимаем модели/цвета/масштаб (с дефолтами)
-  models = config.models || [],
-  modelColors = {},
+export default function StlModel({
+  url,
+  color = "#cccccc",
+  // пользовательский слайдер
   scale = 1,
+  // множитель из конфига модели
+  baseScale = 1,
+  position = [0, 0, 0],
+  rotation = [0, 0, 0],
+  clippingPlanes = [],
+  // НОВОЕ: приводим STL к Z-up и автоподгоняем по XY
+  zUp = true,
+  fitXY = 3.0, // ширина в единицах сцены, под которую ужать модель по X/Y (под стол)
 }) {
-  const cameraProps = { position: [4, 4, 4], fov: 45 };
+  let geometry;
+  try {
+    geometry = useLoader(STLLoader, url);
+  } catch {
+    geometry = null;
+  }
 
-  // НОВОЕ: та же плоскость среза для STL
-  const clipZ = useMemo(
-    () => currentLayer * layerHeight,
-    [currentLayer, layerHeight]
-  );
-  const slicingPlane = useMemo(
-    () => new THREE.Plane(new THREE.Vector3(0, 0, -1), clipZ),
-    [clipZ]
-  );
+  if (!geometry) {
+    return (
+      <mesh position={position} rotation={rotation} scale={scale * baseScale}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial color={color} clippingPlanes={clippingPlanes} />
+      </mesh>
+    );
+  }
+
+  // --- ориентация: делаем Z-вверх (многие STL идут Y-up) ---
+  if (zUp) {
+    // повернули геометрию, не меш
+    geometry.rotateX(Math.PI / 2);
+  }
+
+  // считаем бокс ПОСЛЕ поворота
+  geometry.computeBoundingBox();
+  const box = geometry.boundingBox.clone();
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  const center = new THREE.Vector3();
+  box.getCenter(center);
+
+  // центр по X/Y и "пяткой" на Z=0 (стоит на столе)
+  geometry.translate(-center.x, -center.y, -box.min.z);
+
+  // пересчитать после трансформаций
+  geometry.computeBoundingBox();
+  const sizeAfter = new THREE.Vector3();
+  geometry.boundingBox.getSize(sizeAfter);
+
+  // --- авто-масштаб по XY под fitXY ---
+  const maxXY = Math.max(sizeAfter.x, sizeAfter.y) || 1;
+  const autoK = fitXY / maxXY; // чем больше fitXY — тем крупнее на столе
+  const finalScale = scale * baseScale * autoK;
 
   return (
-    <Canvas
-      shadows
-      camera={cameraProps}
-      style={{ height: "70vh", minHeight: 440 }}
+    <mesh
+      position={position}
+      rotation={rotation}
+      scale={finalScale}
+      castShadow
+      receiveShadow
     >
-      <ClippingScene
-        currentLayer={currentLayer}
-        layerHeight={layerHeight}
-        layers={layers}
+      <primitive object={geometry} attach="geometry" />
+      <meshStandardMaterial
+        color={new THREE.Color(color)}
+        metalness={0.05}
+        roughness={0.8}
+        clippingPlanes={clippingPlanes}
+        side={THREE.FrontSide}
       />
-
-      {/* STL-модели из конфига, режем той же плоскостью */}
-      {models.map((m) => (
-        <StlModel
-          key={m.id}
-          url={m.file}
-          color={modelColors[m.id] || "#cccccc"}
-          baseScale={m.scale || 1}
-          scale={scale}
-          position={m.position || [0, 0, 0]}
-          clippingPlanes={[slicingPlane]}
-        />
-      ))}
-    </Canvas>
+    </mesh>
   );
 }
