@@ -29,15 +29,33 @@ export default async function handler(req, res) {
 
   const cartLines =
     cart
-      .map(
-        (p, i) =>
-          `${i + 1}. ${p.title || p.name || "Товар"} — ${p.qty || 1} шт${
-            p.price ? ` × ${p.price}` : ""
-          }`
-      )
+      .map((p, i) => {
+        const qty = p.qty || 1;
+        const price = p.price != null ? `${p.price} руб.` : "";
+        const line1 = `${i + 1}. ${p.title || p.name || "Товар"} — ${qty} шт${
+          price ? ` × ${price}` : ""
+        }`;
+
+        const opts = [];
+        if (p.color) opts.push(`цвет: ${p.color}`);
+        if (p.scale) opts.push(`масштаб: ${Number(p.scale).toFixed(1)}×`);
+
+        const print = [];
+        if (p.layerHeight) print.push(`слой: ${p.layerHeight} мм`);
+        if (p.layers) print.push(`слоёв: ${p.layers}`);
+        if (p.currentLayer != null) {
+          const h = p.heightMM != null ? ` (${p.heightMM} мм)` : "";
+          print.push(`текущий слой: ${p.currentLayer}${h}`);
+        }
+
+        const line2 = opts.length ? `   Опции: ${opts.join(", ")}` : "";
+        const line3 = print.length ? `   Печать: ${print.join(", ")}` : "";
+        return [line1, line2, line3].filter(Boolean).join("\n");
+      })
       .join("\n") || "(пусто)";
 
   const text = [
+    `🛒 Новая заявка`,
     `Имя: ${name}`,
     `Телефон: ${phone}`,
     `Email: ${email || "-"}`,
@@ -46,7 +64,7 @@ export default async function handler(req, res) {
     `Состав корзины:`,
     cartLines,
     ``,
-    `Итого: ${total}`,
+    `Итого: ${total} руб.`,
     `Время: ${new Date().toISOString().replace("T", " ").slice(0, 19)} UTC`,
   ].join("\n");
 
