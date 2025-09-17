@@ -6,14 +6,16 @@ import * as THREE from "three";
 export default function StlModel({
   url,
   color = "#cccccc",
-  scale = 1, // пользовательский слайдер
-  baseScale = 1, // из конфига модели (множитель)
+  // пользовательский слайдер
+  scale = 1,
+  // множитель из конфига модели
+  baseScale = 1,
   position = [0, 0, 0],
   rotation = [0, 0, 0],
   clippingPlanes = [],
-  // НОВОЕ: автоподгон по XY под ширину fitXY (в «мм» единицах сцены)
-  autoFit = true,
-  fitXY = 140, // во сколько «мм» уложить модель по XY (подгони под свой стол)
+  // НОВОЕ: приводим STL к Z-up и автоподгоняем по XY
+  zUp = true,
+  fitXY = 3.0, // ширина в единицах сцены, под которую ужать модель по X/Y (под стол)
 }) {
   let geometry;
   try {
@@ -25,13 +27,19 @@ export default function StlModel({
   if (!geometry) {
     return (
       <mesh position={position} rotation={rotation} scale={scale * baseScale}>
-        <boxGeometry args={[20, 20, 20]} />
+        <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial color={color} clippingPlanes={clippingPlanes} />
       </mesh>
     );
   }
 
-  // === Выравнивание: центр по XY, "пяткой" на Z=0 ===
+  // --- ориентация: делаем Z-вверх (многие STL идут Y-up) ---
+  if (zUp) {
+    // повернули геометрию, не меш
+    geometry.rotateX(Math.PI / 2);
+  }
+
+  // считаем бокс ПОСЛЕ поворота
   geometry.computeBoundingBox();
   const box = geometry.boundingBox.clone();
   const size = new THREE.Vector3();
@@ -39,14 +47,17 @@ export default function StlModel({
   const center = new THREE.Vector3();
   box.getCenter(center);
 
-  // переносим геометрию так, чтобы:
-  // - центр по X/Y в (0,0)
-  // - низ модели (min.z) в 0 -> стоит на столе
+  // центр по X/Y и "пяткой" на Z=0 (стоит на столе)
   geometry.translate(-center.x, -center.y, -box.min.z);
 
-  // === Авто-масштаб по XY под fitXY (например 140 мм) ===
-  const maxXY = Math.max(size.x, size.y) || 1;
-  const autoK = autoFit ? fitXY / maxXY : 1;
+  // пересчитать после трансформаций
+  geometry.computeBoundingBox();
+  const sizeAfter = new THREE.Vector3();
+  geometry.boundingBox.getSize(sizeAfter);
+
+  // --- авто-масштаб по XY под fitXY ---
+  const maxXY = Math.max(sizeAfter.x, sizeAfter.y) || 1;
+  const autoK = fitXY / maxXY; // чем больше fitXY — тем крупнее на столе
   const finalScale = scale * baseScale * autoK;
 
   return (
