@@ -89,12 +89,22 @@ export default function LayerSlicer({
   currentLayer,
   layerHeight,
   layers,
-  // НОВОЕ: принимаем пропсы для STL
+  // НОВОЕ: принимаем модели/цвета/масштаб (с дефолтами)
   models = config.models || [],
   modelColors = {},
   scale = 1,
 }) {
   const cameraProps = { position: [4, 4, 4], fov: 45 };
+
+  // НОВОЕ: та же плоскость среза для STL
+  const clipZ = useMemo(
+    () => currentLayer * layerHeight,
+    [currentLayer, layerHeight]
+  );
+  const slicingPlane = useMemo(
+    () => new THREE.Plane(new THREE.Vector3(0, 0, -1), clipZ),
+    [clipZ]
+  );
 
   return (
     <Canvas
@@ -108,7 +118,7 @@ export default function LayerSlicer({
         layers={layers}
       />
 
-      {/* STL-модели из конфига */}
+      {/* STL-модели из конфига, режем той же плоскостью */}
       {models.map((m) => (
         <StlModel
           key={m.id}
@@ -117,7 +127,7 @@ export default function LayerSlicer({
           baseScale={m.scale || 1}
           scale={scale}
           position={m.position || [0, 0, 0]}
-          // clippingPlanes не передаём — здесь переменной нет
+          clippingPlanes={[slicingPlane]}
         />
       ))}
     </Canvas>
